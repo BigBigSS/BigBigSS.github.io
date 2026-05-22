@@ -87,101 +87,74 @@ import { site } from "../data/site";
       color: string;
     }
 
+    // 暗色模式：轻奢科幻，去除高对比度的生硬纯白
     const ribbonsColorsDark: GradientColor[][] = [
       [
         { offset: 0, color: "#000000" },
-        { offset: 0.15, color: "#090314" },
-        { offset: 0.35, color: "#230d52" },
-        { offset: 0.47, color: "#6432c9" },
-        { offset: 0.495, color: "#a78aed" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.515, color: "#a78aed" },
-        { offset: 0.60, color: "#411a91" },
-        { offset: 0.80, color: "#0f0529" },
+        { offset: 0.18, color: "#06030f" },
+        { offset: 0.42, color: "#190938" },
+        { offset: 0.65, color: "#5423b8" },
+        { offset: 0.88, color: "#8d64e0" },
         { offset: 1.0, color: "#000000" }
       ],
       [
         { offset: 0, color: "#000000" },
-        { offset: 0.10, color: "#02171c" },
-        { offset: 0.30, color: "#0a4c5e" },
-        { offset: 0.46, color: "#209da8" },
-        { offset: 0.495, color: "#8bf2ed" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.515, color: "#8bf2ed" },
-        { offset: 0.60, color: "#18786e" },
-        { offset: 0.80, color: "#052b21" },
+        { offset: 0.15, color: "#011014" },
+        { offset: 0.40, color: "#07323f" },
+        { offset: 0.68, color: "#197c85" },
+        { offset: 0.90, color: "#5eead4" },
         { offset: 1.0, color: "#000000" }
       ],
       [
         { offset: 0, color: "#000000" },
-        { offset: 0.10, color: "#1f0300" },
-        { offset: 0.25, color: "#610f00" },
-        { offset: 0.42, color: "#b82c00" },
-        { offset: 0.485, color: "#f28d13" },
-        { offset: 0.50, color: "#ffebb3" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.51, color: "#ffebb3" },
-        { offset: 0.58, color: "#d9660b" },
-        { offset: 0.80, color: "#5e1400" },
+        { offset: 0.15, color: "#140401" },
+        { offset: 0.38, color: "#470b00" },
+        { offset: 0.65, color: "#a12f0b" },
+        { offset: 0.88, color: "#fca5a5" },
         { offset: 1.0, color: "#000000" }
       ],
       [
         { offset: 0, color: "#000000" },
-        { offset: 0.10, color: "#1f0012" },
-        { offset: 0.30, color: "#5e0431" },
-        { offset: 0.46, color: "#ab1862" },
-        { offset: 0.495, color: "#f07ab9" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.515, color: "#f07ab9" },
-        { offset: 0.60, color: "#8f0e4d" },
-        { offset: 0.80, color: "#240114" },
+        { offset: 0.15, color: "#14000c" },
+        { offset: 0.42, color: "#4c0529" },
+        { offset: 0.68, color: "#991b58" },
+        { offset: 0.90, color: "#f472b6" },
         { offset: 1.0, color: "#000000" }
       ]
     ];
 
+    // 亮色模式：极致清透的莫兰迪马卡龙色与优雅香槟色，平滑融入白色背景
     const ribbonsColorsLight: GradientColor[][] = [
       [
         { offset: 0, color: "var(--bg)" },
-        { offset: 0.15, color: "#f3e8ff" },
-        { offset: 0.35, color: "#d8b4fe" },
-        { offset: 0.47, color: "#9333ea" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.52, color: "#9333ea" },
-        { offset: 0.65, color: "#d8b4fe" },
-        { offset: 0.85, color: "#f3e8ff" },
+        { offset: 0.20, color: "#faf5ff" },
+        { offset: 0.48, color: "#e9d5ff" },
+        { offset: 0.78, color: "#c084fc" },
+        { offset: 0.92, color: "#f3e8ff" },
         { offset: 1.0, color: "var(--bg)" }
       ],
       [
         { offset: 0, color: "var(--bg)" },
-        { offset: 0.15, color: "#ccfbf1" },
-        { offset: 0.35, color: "#5eead4" },
-        { offset: 0.47, color: "#0d9488" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.52, color: "#0d9488" },
-        { offset: 0.65, color: "#5eead4" },
-        { offset: 0.85, color: "#ccfbf1" },
+        { offset: 0.20, color: "#f0fdfa" },
+        { offset: 0.48, color: "#99f6e4" },
+        { offset: 0.78, color: "#2dd4bf" },
+        { offset: 0.92, color: "#ccfbf1" },
         { offset: 1.0, color: "var(--bg)" }
       ],
       [
         { offset: 0, color: "var(--bg)" },
-        { offset: 0.15, color: "#ffedd5" },
-        { offset: 0.35, color: "#fdba74" },
-        { offset: 0.47, color: "#ea580c" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.52, color: "#ea580c" },
-        { offset: 0.65, color: "#fdba74" },
-        { offset: 0.85, color: "#ffedd5" },
+        { offset: 0.20, color: "#fff7ed" },
+        { offset: 0.48, color: "#fed7aa" },
+        { offset: 0.78, color: "#fb923c" },
+        { offset: 0.92, color: "#ffedd5" },
         { offset: 1.0, color: "var(--bg)" }
       ],
       [
         { offset: 0, color: "var(--bg)" },
-        { offset: 0.15, color: "#fce7f3" },
-        { offset: 0.35, color: "#f9a8d4" },
-        { offset: 0.47, color: "#db2777" },
-        { offset: 0.505, color: "#ffffff" },
-        { offset: 0.52, color: "#db2777" },
-        { offset: 0.65, color: "#f9a8d4" },
-        { offset: 0.85, color: "#fce7f3" },
+        { offset: 0.20, color: "#fff1f2" },
+        { offset: 0.48, color: "#fbcfe8" },
+        { offset: 0.78, color: "#f472b6" },
+        { offset: 0.92, color: "#fce7f3" },
         { offset: 1.0, color: "var(--bg)" }
       ]
     ];
@@ -231,7 +204,6 @@ import { site } from "../data/site";
         const isLight = checkIsLightMode();
         const ribbons = isLight ? ribbonsColorsLight : ribbonsColorsDark;
         
-        // 动态解析 Astro 主题的 --bg 变量
         const bgComputed = isLight 
           ? (getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff') 
           : '#000000';
@@ -253,7 +225,6 @@ import { site } from "../data/site";
         texture.needsUpdate = true;
       };
 
-      // 触发初始渐变纹理绘制
       updateGradientTexture();
 
       // 3. 编写着色器与创建 Program
@@ -274,10 +245,20 @@ import { site } from "../data/site";
             vUv = uv;
             vec3 pos = position;
             
-            // 三角复合波形进行 3D 浮动形变
-            float wave = sin(pos.y * 2.2 + uTime * 1.5 + uOffset) * 0.12 * uWaveAmp;
-            pos.x += wave;
-            pos.z += cos(pos.y * 1.8 + uTime * 1.2 + uOffset) * 0.08 * uWaveAmp;
+            // 1. 更大幅度且非均匀的优雅摆动 (打造真正的 S 弯飘逸曲线)
+            float timeFactor = uTime * 0.9 + uOffset;
+            float waveX = sin(pos.y * 1.5 + timeFactor) * 0.38 * uWaveAmp;
+            float waveZ = cos(pos.y * 1.2 + timeFactor * 1.1) * 0.28 * uWaveAmp;
+            
+            // 2. 局部 3D 扭拧 (Twist) - 绕 Y 轴进行局部倾斜旋转，创造丝织高反光转折
+            float twistAngle = sin(pos.y * 1.0 + uTime * 0.6) * 0.32 * uWaveAmp;
+            float c = cos(twistAngle);
+            float s = sin(twistAngle);
+            float rx = pos.x * c - pos.z * s;
+            float rz = pos.x * s + pos.z * c;
+            
+            pos.x = rx + waveX;
+            pos.z = rz + waveZ;
             
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
@@ -307,35 +288,44 @@ import { site } from "../data/site";
         }
 
         void main() {
-            // 通过纵向 Y 坐标区分 4 条丝带色带
             float vCoord = (uRibbonIndex + 0.5) / 4.0;
             vec4 ribbonColor = texture2D(uGradientTex, vec2(vUv.x, vCoord));
             
-            // 聚光灯跟随高光 (使用屏幕像素计算)
+            // 1. 鼠标跟随聚光灯和流动扫光计算
             float mouseDist = distance(gl_FragCoord.xy, uMouse);
-            float mouseRadius = uResolution.x * 0.38; 
+            float mouseRadius = uResolution.x * 0.45; 
             float mouseMask = smoothstep(mouseRadius, 0.0, mouseDist) * uBrightOpacity;
             
-            // 沿 Y 轴流动的线性扫光
             float distToWave = abs(vUv.y - uWaveProgress);
-            float waveMask = smoothstep(0.18, 0.0, distToWave) * uWaveOpacity;
+            float waveMask = smoothstep(0.22, 0.0, distToWave) * uWaveOpacity;
             
-            // 合成最终色彩及微弱的透视深度雾化
-            float mask = uDimOpacity + mouseMask + waveMask * 1.5;
-            vec3 finalColor = ribbonColor.rgb * mask;
+            // 2. 空气感羽化遮罩 (左右边缘羽化 + 上下淡出，杜绝塑料板硬边缘)
+            float edgeAlphaX = smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x);
+            float edgeAlphaY = smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.75, vUv.y);
+            float totalEdgeAlpha = edgeAlphaX * edgeAlphaY;
             
-            float fog = smoothstep(-5.0, 2.0, vDepth);
-            finalColor = mix(finalColor * 0.35, finalColor, fog);
+            // 3. 动态光强与 Alpha 苏醒的交互反馈
+            float activeFactor = mouseMask + waveMask * 1.5;
+            float finalAlpha = mix(uDimOpacity, 0.82, activeFactor) * ribbonColor.a * totalEdgeAlpha;
+            float brightness = mix(0.75, 1.45, activeFactor);
             
-            // 像素伪随机噪点叠加
-            float noise = (random(gl_FragCoord.xy + uTime * 0.08) - 0.5) * uNoiseIntensity;
+            // 4. 丝绸凹面动态微高光 (数学模拟丝织品的软高光，替代生硬白线)
+            float specular = pow(sin(vUv.x * 3.14159), 3.5) * 0.22 * brightness;
+            
+            // 5. 颜色合成与深度雾化
+            vec3 finalColor = ribbonColor.rgb * brightness + vec3(specular);
+            float fog = smoothstep(-5.0, 2.5, vDepth);
+            finalColor = mix(finalColor * 0.25, finalColor, fog);
+            
+            // 6. 微晶随机噪点叠加
+            float noise = (random(gl_FragCoord.xy + uTime * 0.06) - 0.5) * uNoiseIntensity;
             finalColor += vec3(noise);
             
-            gl_FragColor = vec4(finalColor, ribbonColor.a);
+            gl_FragColor = vec4(finalColor, finalAlpha);
         }
       `;
 
-      // 4. 建立细分树
+      // 4. 建立细分网格 (Y轴有60分段保证完美弯曲)
       const geometry = new Plane(gl, {
         width: 1,
         height: 1,
@@ -343,15 +333,18 @@ import { site } from "../data/site";
         heightSegments: 60
       });
 
-      // 5. 按照 CSS 3D 原始排布，生成 4 条 Mesh
+      // 5. 降低宽度比例 (从 1.9~2.5 收缩到 1.1~1.45)，并轻微拉开位置，留白更具呼吸感
       const meshes: Mesh[] = [];
       const ribbonParams = [
-        { index: 0.0, offset: 0.0, pos: [-3.2, 0, -1.0], rot: [0, -15, 5], scale: [1.9, 8.0, 1.0] },
-        { index: 1.0, offset: 3.0, pos: [-1.0, 0, 0.0], rot: [0, -25, -2], scale: [2.2, 8.0, 1.0] },
-        { index: 2.0, offset: 6.0, pos: [1.4, 0, 1.0], rot: [0, -35, -10], scale: [2.5, 8.0, 1.0] },
-        { index: 3.0, offset: 9.0, pos: [3.8, 0, 2.0], rot: [0, -45, -18], scale: [2.1, 8.0, 1.0] }
+        { index: 0.0, offset: 0.0, pos: [-3.3, 0, -1.0], rot: [0, -12, 6], scale: [1.1, 8.5, 1.0] },
+        { index: 1.0, offset: 3.0, pos: [-1.1, 0, 0.0], rot: [0, -20, -1], scale: [1.3, 8.5, 1.0] },
+        { index: 2.0, offset: 6.0, pos: [1.2, 0, 1.0], rot: [0, -28, -8], scale: [1.45, 8.5, 1.0] },
+        { index: 3.0, offset: 9.0, pos: [3.4, 0, 2.0], rot: [0, -36, -14], scale: [1.2, 8.5, 1.0] }
       ];
 
+      // 亮色下调低非活跃透明度 (uDimOpacity = 0.18)，暗色下下调 (uDimOpacity = 0.22)
+      // 鼠标未滑过时只呈现极淡的薄纱影子，亮起时才光芒醒目
+      const isLightMode = checkIsLightMode();
       const uniforms = {
         uGradientTex: { value: texture },
         uTime: { value: 0 },
@@ -359,10 +352,10 @@ import { site } from "../data/site";
         uMouse: { value: [currentX, currentY] },
         uResolution: { value: [gl.canvas.width, gl.canvas.height] },
         uBrightOpacity: { value: 0 },
-        uDimOpacity: { value: checkIsLightMode() ? 0.95 : 0.45 },
+        uDimOpacity: { value: isLightMode ? 0.18 : 0.22 },
         uWaveProgress: { value: waveProgress },
         uWaveOpacity: { value: waveOpacity },
-        uNoiseIntensity: { value: 0.038 }
+        uNoiseIntensity: { value: 0.032 }
       };
 
       ribbonParams.forEach(param => {
@@ -410,8 +403,9 @@ import { site } from "../data/site";
 
         const aspect = width / height;
         if (aspect < 1.0) {
-          scene.position.set(0.6, 0, 0);
-          scene.scale.set(0.9, 0.9, 0.9);
+          // 移动端/窄屏向右偏离，保证不与主体文字发生视觉重合
+          scene.position.set(0.7, 0, 0);
+          scene.scale.set(0.85, 0.85, 0.85);
         } else {
           scene.position.set(0, 0, 0);
           scene.scale.set(1.0, 1.0, 1.0);
@@ -426,7 +420,7 @@ import { site } from "../data/site";
       // 7. 亮暗模式切换 MutationObserver 同步
       const observerTheme = new MutationObserver(() => {
         updateGradientTexture();
-        uniforms.uDimOpacity.value = checkIsLightMode() ? 0.95 : 0.45;
+        uniforms.uDimOpacity.value = checkIsLightMode() ? 0.18 : 0.22;
       });
       observerTheme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
       observerTheme.observe(document.body, { attributes: true, attributeFilter: ["class"] });
