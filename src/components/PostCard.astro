@@ -1,0 +1,63 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { formatCompactDate } from "../lib/content";
+
+interface Props {
+  post: CollectionEntry<"posts">;
+  index?: number;
+}
+
+const { post, index = 0 } = Astro.props;
+---
+
+<article class="post-card surface-card">
+  <a class="card-link post-card__link" href={`/posts/${post.id}/`}>
+    <div class="post-card__header">
+      <p class="post-card__index">{String(index + 1).padStart(2, "0")}</p>
+      <p class="post-card__date">{formatCompactDate(post.data.date)}</p>
+    </div>
+
+    <h3 class="post-card__title">{post.data.title}</h3>
+    <p class="post-card__description">{post.data.description}</p>
+
+    <ul class="tag-list">
+      {post.data.tags.map((tag) => <li class="tag-pill">{tag}</li>)}
+    </ul>
+  </a>
+</article>
+
+<style>
+  .post-card {
+    overflow: hidden;
+  }
+
+  .post-card__link {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+    padding: 26px;
+  }
+
+  .post-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+  }
+
+  .post-card__title {
+    margin: 0;
+    font-size: 1.55rem;
+    line-height: 1.18;
+    letter-spacing: -0.03em;
+  }
+
+  .post-card__description {
+    margin: 0;
+    color: var(--text-secondary);
+  }
+</style>

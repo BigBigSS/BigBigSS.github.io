@@ -1,0 +1,38 @@
+---
+import { getCollection, render } from "astro:content";
+import AboutStagePanel from "../components/AboutStagePanel.astro";
+import HeroSpotlight from "../components/HeroSpotlight.astro";
+import HomeMarquee from "../components/HomeMarquee.astro";
+import ImageBarrel from "../components/ImageBarrel.astro";
+import NowEditorialCurtain from "../components/NowEditorialCurtain.astro";
+import WritingSpotlightGrid from "../components/WritingSpotlightGrid.astro";
+import { site } from "../data/site";
+import { publishedPosts, sortByDateDesc } from "../lib/content";
+import { getGalleryItems } from "../lib/gallery";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ScrollReveal from "../components/ScrollReveal.astro";
+
+const posts = publishedPosts(await getCollection("posts")).slice(0, 5);
+const nowEntries = sortByDateDesc(await getCollection("now")).slice(0, 3);
+const nowItems = await Promise.all(
+  nowEntries.map(async (entry) => ({
+    entry,
+    rendered: await render(entry),
+  })),
+);
+const galleryItems = await getGalleryItems(60);
+---
+
+<BaseLayout
+  title={`${site.name} · ${site.slogan}`}
+  description={site.description}
+>
+  <HeroSpotlight />
+  <AboutStagePanel />
+  <NowEditorialCurtain items={nowItems} />
+  <WritingSpotlightGrid posts={posts} />
+  <HomeMarquee />
+  <ScrollReveal animation="fade-up" duration={1200}>
+    <ImageBarrel items={galleryItems} />
+  </ScrollReveal>
+</BaseLayout>

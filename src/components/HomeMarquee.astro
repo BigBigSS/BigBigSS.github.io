@@ -1,0 +1,133 @@
+---
+import capabilities from "../data/capabilities.json";
+
+const rowOne = capabilities.rowOne;
+const rowTwo = capabilities.rowTwo;
+---
+
+<section class="home-marquee section" aria-label="Capabilities marquee">
+  <div class="page-shell">
+    <div class="home-marquee__header">
+      <p class="home-marquee__eyebrow">05 / SYSTEM CAPABILITIES</p>
+      <span class="home-marquee__label">Endless Loop</span>
+    </div>
+  </div>
+
+  <div class="home-marquee__lane">
+    <div class="home-marquee__track">
+      {rowOne.map((item, index) => <span class:list={["home-marquee__item", { "is-outline": index % 2 === 1 }]}>{item}</span>)}
+    </div>
+    <div class="home-marquee__track" aria-hidden="true">
+      {rowOne.map((item, index) => <span class:list={["home-marquee__item", { "is-outline": index % 2 === 1 }]}>{item}</span>)}
+    </div>
+  </div>
+
+  <div class="home-marquee__lane home-marquee__lane--reverse">
+    <div class="home-marquee__track">
+      {rowTwo.map((item, index) => <span class:list={["home-marquee__item", { "is-muted": index % 3 === 1 }]}>{item}</span>)}
+    </div>
+    <div class="home-marquee__track" aria-hidden="true">
+      {rowTwo.map((item, index) => <span class:list={["home-marquee__item", { "is-muted": index % 3 === 1 }]}>{item}</span>)}
+    </div>
+  </div>
+</section>
+
+<style>
+  .home-marquee {
+    --marquee-mask: linear-gradient(to right, transparent, black 14%, black 86%, transparent);
+    --text-stroke-primary: 1px #fff;
+    --text-stroke-secondary: 1px #525252;
+    padding-top: 48px;
+    overflow: hidden;
+  }
+
+  :global(body.light-mode) .home-marquee {
+    --marquee-mask: linear-gradient(to right, transparent, white 14%, white 86%, transparent);
+    --text-stroke-primary: 1px #000;
+    --text-stroke-secondary: 1px #a3a3a3;
+  }
+
+  .home-marquee__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .home-marquee__eyebrow,
+  .home-marquee__label {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .home-marquee__lane {
+    display: flex;
+    overflow: hidden;
+    mask-image: var(--marquee-mask);
+    -webkit-mask-image: var(--marquee-mask);
+  }
+
+  .home-marquee__lane + .home-marquee__lane {
+    margin-top: 8px;
+  }
+
+  .home-marquee__track {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: space-around;
+    min-width: 100%;
+    gap: 3rem;
+    animation: home-marquee-scroll 20s linear infinite;
+  }
+
+  .home-marquee__lane--reverse .home-marquee__track {
+    animation-direction: reverse;
+    animation-duration: 24s;
+  }
+
+  .home-marquee__lane:hover .home-marquee__track {
+    animation-play-state: paused;
+  }
+
+  .home-marquee__item {
+    color: var(--text-primary);
+    font-size: clamp(2.8rem, 6vw, 5.8rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .home-marquee__item.is-outline {
+    color: transparent;
+    -webkit-text-stroke: var(--text-stroke-primary);
+  }
+
+  .home-marquee__item.is-muted {
+    color: transparent;
+    -webkit-text-stroke: var(--text-stroke-secondary);
+  }
+
+  @keyframes home-marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(calc(-100% - 3rem));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .home-marquee__header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

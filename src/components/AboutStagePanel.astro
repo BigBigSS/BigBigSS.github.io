@@ -1,0 +1,692 @@
+---
+import { site } from "../data/site";
+
+const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
+---
+
+<section class="section about-stage" id="about">
+  <div class="page-shell about-stage__shell">
+    <p class="about-stage__eyebrow">02 / IDENTITÉ</p>
+
+    <div class="about-stage__spot" data-about-stage>
+      <div class="about-stage__card" data-about-card>
+        <!-- Glassmorphism backdrop layer (Z = -50px) -->
+        <div class="about-stage__backdrop"></div>
+
+        <!-- Default: trigger text layer (Z = 20px) -->
+        <div class="about-stage__trigger-wrap">
+          <h2 class="about-stage__trigger" data-about-trigger tabindex="0">
+            {
+              introLines.map((line) => (
+                <span data-poetry-line>{line}</span>
+              ))
+            }
+          </h2>
+        </div>
+
+        <!-- Hover: revealed panel layer (Z = 60px) -->
+        <div class="about-stage__panel" data-about-panel>
+          <div class="about-stage__panel-inner">
+            <div class="about-stage__copy-layer about-stage__copy-layer--base">
+              <h2 class="about-stage__title">
+                Hello，我是 {site.name}
+              </h2>
+              <p class="about-stage__subtitle">
+                <span>一名来自武汉的软件工程师。</span>
+                <span>这里记录了我热爱的生活与工作，may you have a beautiful day here.</span>
+              </p>
+            </div>
+
+            <div class="about-stage__copy-layer about-stage__copy-layer--lens" aria-hidden="true">
+              <h2 class="about-stage__title">
+                你好，I am {site.name}
+              </h2>
+              <p class="about-stage__subtitle">
+                <span>A software engineer from Wuhan.</span>
+                <span>Here I keep the life and work I love，希望来到这里的你拥有美好的一天。</span>
+              </p>
+            </div>
+
+            <div class="about-stage__lens" aria-hidden="true" data-about-lens></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isMobile = coarsePointer || window.innerWidth < 768;
+  const poemLengthLimit = 18;
+  const poemTypes = ["五言绝句", "七言绝句"];
+  const localPoemSeeds = [
+    ["行到水穷处", "坐看云起时"],
+    ["山中何所有", "岭上多白云"],
+  ];
+  const fallbackPoem = ["春有百花秋有月", "夏有凉风冬有雪"];
+
+  type PoetryPayload = {
+    data?: {
+      content?: string[];
+    };
+  };
+
+  const cleanPoemLine = (line: string) =>
+    line
+      .replace(/[，。！？；：、,.!?;:\s]+$/g, "")
+      .trim();
+
+  const splitPoemLine = (line: string) =>
+    line
+      .split(/[，。！？；：、,.!?;:\s]+/g)
+      .map(cleanPoemLine)
+      .filter(Boolean);
+
+  const pickTwoLines = (content: string[] = []) => {
+    const directLines = content.map(cleanPoemLine).filter(Boolean);
+    if (directLines.length >= 2) return directLines.slice(0, 2);
+
+    const splitLines = content.flatMap(splitPoemLine);
+    if (splitLines.length >= 2) return splitLines.slice(0, 2);
+
+    return fallbackPoem;
+  };
+
+  const syncPoemFontSize = (stage: HTMLElement, trigger: HTMLElement, lines: string[]) => {
+    const stageWidth = stage.getBoundingClientRect().width || window.innerWidth;
+    const longestLine = Math.max(...lines.map((line) => line.length), 1);
+    const maxSize = Math.min(window.innerWidth < 640 ? 74 : 128, stageWidth / 2.7);
+    const fittedSize = Math.floor((stageWidth * 0.9) / (longestLine * 1.02));
+    const nextSize = Math.max(28, Math.min(maxSize, fittedSize));
+    trigger.style.setProperty("--poem-font-size", `${nextSize}px`);
+  };
+
+  const fetchPoemLines = async () => {
+    const type = poemTypes[Math.floor(Math.random() * poemTypes.length)];
+    const response = await fetch(
+      `/api/random-poem.json?lang=zh-Hans&type=${encodeURIComponent(type)}`,
+      {
+        headers: { accept: "application/json" },
+      },
+    );
+    const payload = (await response.json()) as PoetryPayload;
+    return pickTwoLines(payload.data?.content);
+  };
+
+  const applyStagePoem = (stage: HTMLElement, lines: string[]) => {
+    const trigger = stage.querySelector<HTMLElement>("[data-about-trigger]");
+    if (!trigger) return;
+
+    const nextLines = lines.length >= 2 ? lines : fallbackPoem;
+    const isStacked = nextLines.join("").length > poemLengthLimit;
+
+    trigger.classList.toggle("is-stacked", isStacked);
+    syncPoemFontSize(stage, trigger, nextLines);
+    trigger.replaceChildren(
+      ...nextLines.map((line) => {
+        const item = document.createElement("span");
+        item.dataset.poetryLine = "";
+        item.textContent = line;
+        return item;
+      }),
+    );
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-about-stage]").forEach((stage) => {
+    const card = stage.querySelector<HTMLElement>("[data-about-card]");
+    const trigger = stage.querySelector<HTMLElement>("[data-about-trigger]");
+    const panel = stage.querySelector<HTMLElement>("[data-about-panel]");
+    const lens = stage.querySelector<HTMLElement>("[data-about-lens]");
+    const lensRoot = lens?.parentElement as HTMLElement | null;
+    if (!card || !trigger) return;
+    const trackingRoot = stage.closest<HTMLElement>(".about-stage") ?? stage;
+    const poemQueue = localPoemSeeds.map((lines) => [...lines]);
+    let isPoemPrefetching = false;
+
+    const prefetchPoem = async () => {
+      if (isPoemPrefetching) return;
+      isPoemPrefetching = true;
+      try {
+        const lines = await fetchPoemLines();
+        poemQueue.push(lines);
+        while (poemQueue.length > 3) poemQueue.shift();
+      } catch {
+        if (poemQueue.length < 2) {
+          poemQueue.push([...fallbackPoem]);
+        }
+      } finally {
+        isPoemPrefetching = false;
+      }
+    };
+
+    const showQueuedPoem = () => {
+      const lines = poemQueue.shift() ?? fallbackPoem;
+      applyStagePoem(stage, lines);
+      void prefetchPoem();
+    };
+
+    void prefetchPoem();
+    window.addEventListener("theme-change", () => {
+      showQueuedPoem();
+    });
+
+    window.addEventListener("resize", () => {
+      const lines = Array.from(trigger.querySelectorAll<HTMLElement>("[data-poetry-line]"))
+        .map((item) => item.textContent || "")
+        .filter(Boolean);
+      if (lines.length) syncPoemFontSize(stage, trigger, lines);
+    });
+
+    const revealStage = () => {
+      stage.classList.add("is-active");
+    };
+
+    const hideStage = () => {
+      stage.classList.remove("is-active");
+      panel?.classList.remove("is-lens-active");
+    };
+
+    // Reveal only starts from the poem text itself.
+    trigger.addEventListener("mouseenter", revealStage);
+    stage.addEventListener("mouseleave", hideStage);
+
+    // focus support for keyboard accessibility
+    trigger.addEventListener("focus", revealStage);
+    trigger.addEventListener("blur", hideStage);
+
+    const syncLens = (event: PointerEvent) => {
+      if (!panel || !lens || !lensRoot || !stage.classList.contains("is-active")) return;
+      const rect = lensRoot.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      lensRoot.style.setProperty("--lens-x", `${x}px`);
+      lensRoot.style.setProperty("--lens-y", `${y}px`);
+      panel.classList.add("is-lens-active");
+    };
+
+    const hideLens = () => {
+      panel?.classList.remove("is-lens-active");
+    };
+
+    panel?.addEventListener("pointermove", syncLens);
+    panel?.addEventListener("pointerleave", hideLens);
+
+    const shouldTrack3d = !isMobile && !reducedMotion;
+
+    if (isMobile || reducedMotion) {
+      if (isMobile && !reducedMotion) {
+        card.classList.add("mobile-float");
+      }
+    }
+
+    // ── 3D mouse tracking ──
+    let frame = 0;
+    let targetX = 0;
+    let targetY = 0;
+    let currentX = 0;
+    let currentY = 0;
+
+    const update = () => {
+      frame = 0;
+      currentX += (targetX - currentX) * 0.05;
+      currentY += (targetY - currentY) * 0.05;
+
+      const rotateX = (-currentY * 15).toFixed(2);
+      const rotateY = (currentX * 15).toFixed(2);
+      card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+      if (Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
+        frame = window.requestAnimationFrame(update);
+      }
+    };
+
+    const schedule = () => {
+      if (!frame) {
+        frame = window.requestAnimationFrame(update);
+      }
+    };
+
+    const onMove = (event: PointerEvent) => {
+      const rect = trackingRoot.getBoundingClientRect();
+      targetX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      targetY = ((event.clientY - rect.top) / rect.height) * 2 - 1;
+      schedule();
+    };
+
+    const onLeave = () => {
+      targetX = 0;
+      targetY = 0;
+      schedule();
+    };
+
+    if (shouldTrack3d) {
+      trackingRoot.addEventListener("pointermove", onMove);
+      trackingRoot.addEventListener("pointerleave", onLeave);
+      trackingRoot.addEventListener("pointercancel", onLeave);
+    }
+
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        if (frame) window.cancelAnimationFrame(frame);
+        trigger.removeEventListener("mouseenter", revealStage);
+        stage.removeEventListener("mouseleave", hideStage);
+        trigger.removeEventListener("focus", revealStage);
+        trigger.removeEventListener("blur", hideStage);
+        panel?.removeEventListener("pointermove", syncLens);
+        panel?.removeEventListener("pointerleave", hideLens);
+        trackingRoot.removeEventListener("pointermove", onMove);
+        trackingRoot.removeEventListener("pointerleave", onLeave);
+        trackingRoot.removeEventListener("pointercancel", onLeave);
+      },
+      { once: true },
+    );
+  });
+</script>
+
+<style>
+  /* Mobile float animation (matching demo2) */
+  @keyframes float3d {
+    0% { transform: rotateX(5deg) rotateY(-5deg) translateY(0); }
+    50% { transform: rotateX(-5deg) rotateY(5deg) translateY(-15px); }
+    100% { transform: rotateX(5deg) rotateY(-5deg) translateY(0); }
+  }
+
+  .about-stage {
+    min-height: clamp(340px, 48vh, 520px);
+    display: flex;
+    align-items: center;
+    padding-top: clamp(76px, 9vw, 128px);
+  }
+
+  .about-stage__shell {
+    width: var(--container);
+  }
+
+  .about-stage__eyebrow {
+    margin: 0 0 22px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* — Container with perspective — */
+  .about-stage__spot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 90vw;
+    margin: 0 auto;
+    min-height: clamp(260px, 40vh, 420px);
+    perspective: 1500px;
+  }
+
+  /* — Card wrapper: 3D transforms applied here — */
+  .about-stage__card {
+    position: relative;
+    width: 100%;
+    min-height: clamp(260px, 40vh, 420px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 100ms linear;
+  }
+
+  .about-stage__card:global(.mobile-float) {
+    animation: float3d 8s ease-in-out infinite;
+  }
+
+  /* — Glassmorphism backdrop (Z = -50px) — */
+  .about-stage__backdrop {
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px;
+    background: rgba(17, 17, 17, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.03);
+    opacity: 0;
+    transform: scale(0.9) translateZ(-50px);
+    transition: all 1000ms cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .about-stage__spot:global(.is-active) .about-stage__backdrop {
+    opacity: 1;
+    transform: scale(1) translateZ(-50px);
+  }
+
+  :global(body.light-mode) .about-stage__backdrop {
+    background: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.05);
+  }
+
+  /* — Trigger text layer (Z = 20px) — */
+  .about-stage__trigger-wrap {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    opacity: 1;
+    transform: translateY(0) scale(1) translateZ(20px);
+    filter: blur(0);
+    transition:
+      opacity 1200ms cubic-bezier(0.19, 1, 0.22, 1),
+      transform 1200ms cubic-bezier(0.19, 1, 0.22, 1),
+      filter 1200ms cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .about-stage__spot:global(.is-active) .about-stage__trigger-wrap {
+    opacity: 0;
+    transform: translateY(-80px) scale(0.95) translateZ(20px);
+    filter: blur(16px);
+    pointer-events: none;
+  }
+
+  .about-stage__trigger {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.16em 0.26em;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--poem-font-size, clamp(2.4rem, 8vw, 8rem));
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .about-stage__trigger:global(.is-stacked) {
+    display: grid;
+    gap: 0.12em;
+  }
+
+  .about-stage__trigger span {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .about-stage__trigger:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 75%, white 15%);
+    outline-offset: 8px;
+    border-radius: 8px;
+  }
+
+  /* — Revealed panel layer (Z = 60px) — */
+  .about-stage__panel {
+    --lens-size: 148px;
+    --lens-x: 50%;
+    --lens-y: 50%;
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0 24px;
+    opacity: 0;
+    transform: translateY(80px) scale(1.05) translateZ(60px);
+    filter: blur(16px);
+    pointer-events: none;
+    transition:
+      opacity 1200ms cubic-bezier(0.19, 1, 0.22, 1) 75ms,
+      transform 1200ms cubic-bezier(0.19, 1, 0.22, 1) 75ms,
+      filter 1200ms cubic-bezier(0.19, 1, 0.22, 1) 75ms;
+  }
+
+  .about-stage__panel:global(.is-lens-active) {
+    cursor: none;
+  }
+
+  .about-stage__spot:global(.is-active) .about-stage__panel {
+    opacity: 1;
+    transform: translateY(0) scale(1) translateZ(60px);
+    filter: blur(0);
+    pointer-events: auto;
+  }
+
+  .about-stage__panel-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: min(900px, calc(100vw - 48px));
+    min-height: 172px;
+    justify-content: center;
+    isolation: isolate;
+  }
+
+  .about-stage__copy-layer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .about-stage__copy-layer--base {
+    position: relative;
+    z-index: 1;
+  }
+
+  .about-stage__panel:global(.is-lens-active) .about-stage__copy-layer--base {
+    mask-image: radial-gradient(
+      circle calc(var(--lens-size) * 0.52) at var(--lens-x) var(--lens-y),
+      transparent 0 calc(var(--lens-size) * 0.5),
+      #000 calc(var(--lens-size) * 0.52)
+    );
+    -webkit-mask-image: radial-gradient(
+      circle calc(var(--lens-size) * 0.52) at var(--lens-x) var(--lens-y),
+      transparent 0 calc(var(--lens-size) * 0.5),
+      #000 calc(var(--lens-size) * 0.52)
+    );
+  }
+
+  .about-stage__copy-layer--lens {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    justify-content: center;
+    color: var(--text-primary);
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(1.055);
+    transform-origin: var(--lens-x) var(--lens-y);
+    clip-path: circle(calc(var(--lens-size) * 0.5) at var(--lens-x) var(--lens-y));
+    transition: opacity 160ms ease;
+  }
+
+  .about-stage__panel:global(.is-lens-active) .about-stage__copy-layer--lens {
+    opacity: 1;
+  }
+
+  .about-stage__lens {
+    position: absolute;
+    left: var(--lens-x);
+    top: var(--lens-y);
+    z-index: 5;
+    width: var(--lens-size);
+    height: var(--lens-size);
+    border-radius: 999px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.86);
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.72), transparent 14%),
+      radial-gradient(circle at 58% 62%, rgba(125, 232, 212, 0.08), transparent 48%),
+      rgba(255, 255, 255, 0.018);
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.32),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+
+  .about-stage__panel:global(.is-lens-active) .about-stage__lens {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  :global(body.light-mode) .about-stage__lens {
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.92), transparent 14%),
+      radial-gradient(circle at 58% 62%, rgba(99, 102, 241, 0.06), transparent 48%),
+      rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 0, 0, 0.14);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.12),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  }
+
+  /* — Badge pill — */
+  .about-stage__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.70rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .about-stage__badge::before {
+    content: "[ ";
+    opacity: 0.3;
+    margin-right: 6px;
+  }
+
+  .about-stage__badge::after {
+    content: " ]";
+    opacity: 0.3;
+    margin-left: 6px;
+  }
+
+  :global(body.light-mode) .about-stage__badge {
+    border-color: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.02);
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  /* — Title — */
+  .about-stage__title {
+    margin: 0;
+    font-size: clamp(1.9rem, 5vw, 3.9rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-align: center;
+    line-height: 1.15;
+    color: var(--text-primary);
+  }
+
+  .about-stage__divider {
+    margin: 0 16px;
+    color: var(--text-tertiary);
+    font-weight: 300;
+  }
+
+  /* — Subtitle — */
+  .about-stage__subtitle {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 52rem;
+    margin: 0;
+    font-size: clamp(1rem, 1.6vw, 1.28rem);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    line-height: 1.8;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .about-stage__subtitle span {
+    display: block;
+  }
+
+  .about-stage__subtitle span:last-child {
+    white-space: nowrap;
+    font-size: clamp(0.78rem, 1.45vw, 1.2rem);
+  }
+
+  /* — Responsive — */
+  @media (min-width: 768px) {
+    .about-stage__spot {
+      max-width: 80vw;
+    }
+
+    .about-stage__panel-inner {
+      gap: 32px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .about-stage__divider {
+      display: none;
+    }
+
+    .about-stage__role {
+      display: block;
+      margin-top: 8px;
+    }
+
+    .about-stage__panel {
+      --lens-size: 118px;
+    }
+
+    .about-stage__title {
+      font-size: clamp(1.55rem, 7vw, 2.2rem);
+    }
+
+    .about-stage__subtitle {
+      font-size: clamp(0.9rem, 3.4vw, 1.05rem);
+      line-height: 1.65;
+    }
+
+    .about-stage__subtitle span:last-child {
+      font-size: clamp(0.5rem, 2.2vw, 0.76rem);
+    }
+
+    .about-stage__copy-layer,
+    .about-stage__panel-inner {
+      gap: 18px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .about-stage {
+      min-height: 280px;
+    }
+
+    .about-stage__spot {
+      min-height: 280px;
+    }
+
+    .about-stage__card {
+      min-height: 280px;
+    }
+  }
+</style>

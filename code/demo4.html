@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作品集炫酷组件 Demo</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 配置 Tailwind 启用基于 class 的暗色模式
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        /* =========================================
+           0. 主题变量 (CSS Variables)
+           ========================================= */
+        :root {
+            /* 亮色模式 (Light Mode) 变量 */
+            --card-base-bg: rgba(0, 0, 0, 0.05);
+            --spotlight-inner: rgba(0, 0, 0, 0.04);
+            --spotlight-outer: rgba(0, 0, 0, 0.2);
+            --card-content-bg: rgb(250, 250, 250);
+            --text-stroke-primary: 1px #000;
+            --text-stroke-secondary: 1px #a3a3a3;
+            --marquee-mask: linear-gradient(to right, transparent, white 15%, white 85%, transparent);
+        }
+
+        html.dark {
+            /* 暗色模式 (Dark Mode) 变量 */
+            --card-base-bg: rgba(255, 255, 255, 0.05);
+            --spotlight-inner: rgba(255, 255, 255, 0.03);
+            --spotlight-outer: rgba(255, 255, 255, 0.5);
+            --card-content-bg: rgb(10, 10, 10);
+            --text-stroke-primary: 1px #fff;
+            --text-stroke-secondary: 1px #525252;
+            --marquee-mask: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+        }
+
+        /* 抽取空心字体的通用类 */
+        .text-stroke-primary { 
+            -webkit-text-stroke: var(--text-stroke-primary); 
+            color: transparent; 
+        }
+        .text-stroke-secondary { 
+            -webkit-text-stroke: var(--text-stroke-secondary); 
+            color: transparent; 
+        }
+
+        /* =========================================
+           1. 探照灯卡片 (Spotlight Cards) 自定义样式
+           ========================================= */
+        #cards {
+            /* 容器悬停时，内部卡片变暗，突出被光照的卡片 */
+            &:hover > .card::after {
+                opacity: 1;
+            }
+        }
+
+        .card {
+            background-color: var(--card-base-bg);
+            border-radius: 0; /* 极致时尚采用锐利直角 */
+            position: relative;
+            /* 隐藏溢出的光晕 */
+            overflow: hidden;
+            transition: background-color 500ms ease;
+        }
+
+        /* 鼠标追踪发光边框 */
+        .card::before,
+        .card::after {
+            content: "";
+            border-radius: inherit;
+            height: 100%;
+            left: 0px;
+            opacity: 0;
+            position: absolute;
+            top: 0px;
+            transition: opacity 500ms;
+            width: 100%;
+        }
+
+        /* 内部光晕 */
+        .card::before {
+            background: radial-gradient(
+                800px circle at var(--mouse-x) var(--mouse-y), 
+                var(--spotlight-inner),
+                transparent 40%
+            );
+            z-index: 3;
+        }
+
+        /* 外部亮光边框效果 */
+        .card::after {  
+            background: radial-gradient(
+                600px circle at var(--mouse-x) var(--mouse-y), 
+                var(--spotlight-outer),
+                transparent 40%
+            );
+            z-index: 1;
+        }
+
+        /* 卡片内容层，盖住光晕的中心，只留出边框 */
+        .card > .card-content {
+            background-color: var(--card-content-bg);
+            border-radius: inherit;
+            margin: 1px; /* 留出1px作为发光边框 */
+            height: calc(100% - 2px);
+            width: calc(100% - 2px);
+            position: relative;
+            z-index: 2;
+            transition: background-color 500ms ease;
+        }
+
+        /* =========================================
+           2. 无限跑马灯 (Infinite Marquee) 动画
+           ========================================= */
+        .marquee-container {
+            display: flex;
+            overflow: hidden;
+            /* 边缘渐变遮罩，跟随主题切换 */
+            mask-image: var(--marquee-mask);
+            -webkit-mask-image: var(--marquee-mask);
+            transition: mask-image 500ms ease, -webkit-mask-image 500ms ease;
+        }
+
+        .marquee-content {
+            display: flex;
+            flex-shrink: 0;
+            justify-content: space-around;
+            min-width: 100%;
+            gap: 3rem;
+            animation: scroll 20s linear infinite;
+        }
+
+        /* 鼠标悬停时暂停滚动 */
+        .marquee-container:hover .marquee-content {
+            animation-play-state: paused;
+        }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(calc(-100% - 3rem)); }
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-black text-neutral-800 dark:text-neutral-300 font-sans min-h-screen py-20 antialiased selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
+
+    <!-- 模式切换按钮 (右上角) -->
+    <button id="theme-toggle" class="fixed top-6 right-6 md:top-10 md:right-10 z-50 w-12 h-12 flex items-center justify-center border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black text-black dark:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors duration-300">
+        <!-- 太阳图标 (Light Mode 下隐藏，Dark Mode 下显示) -->
+        <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        <!-- 月亮图标 (Light Mode 下显示，Dark Mode 下隐藏) -->
+        <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+    </button>
+
+    <div class="max-w-6xl mx-auto px-6 space-y-40">
+        
+        <!-- 头部说明 -->
+        <div class="space-y-6 pt-10 border-b border-neutral-200 dark:border-neutral-800 pb-10 transition-colors duration-500">
+            <h1 class="text-5xl md:text-7xl font-bold text-black dark:text-white tracking-tighter uppercase transition-colors duration-500">
+                Selected Works.
+            </h1>
+            <p class="text-neutral-500 max-w-2xl text-lg tracking-wide uppercase transition-colors duration-500">
+                Monochrome Vision / Minimalist Interaction
+            </p>
+        </div>
+
+        <!-- 组件 1：探照灯项目卡片 -->
+        <section>
+            <div class="flex justify-between items-end mb-12 border-b border-neutral-200 dark:border-neutral-800 pb-4 transition-colors duration-500">
+                <h2 class="text-xl md:text-3xl font-medium text-black dark:text-white uppercase tracking-widest transition-colors duration-500">01 / Projects</h2>
+                <span class="text-neutral-500 dark:text-neutral-600 text-sm uppercase tracking-widest hidden md:inline transition-colors duration-500">Hover Spotlight</span>
+            </div>
+            
+            <div id="cards" class="grid grid-cols-1 md:grid-cols-3 gap-1 group">
+                <!-- 卡片 1 -->
+                <div class="card h-80 cursor-pointer">
+                    <div class="card-content p-8 flex flex-col justify-between">
+                        <div class="space-y-6">
+                            <h3 class="text-2xl font-bold text-black dark:text-white uppercase tracking-wider leading-snug transition-colors duration-500">E-Commerce<br/>Architecture</h3>
+                            <p class="text-neutral-500 text-sm leading-relaxed transition-colors duration-500">
+                                High-performance Next.js storefront. 100 Lighthouse score. Stripe integration.
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">React</span>
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">Node.js</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 卡片 2 -->
+                <div class="card h-80 cursor-pointer">
+                    <div class="card-content p-8 flex flex-col justify-between">
+                        <div class="space-y-6">
+                            <h3 class="text-2xl font-bold text-black dark:text-white uppercase tracking-wider leading-snug transition-colors duration-500">Real-time<br/>Dashboard</h3>
+                            <p class="text-neutral-500 text-sm leading-relaxed transition-colors duration-500">
+                                WebSocket-based monitoring system. Millisecond data push. Canvas rendering.
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">Vue 3</span>
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">ECharts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 卡片 3 -->
+                <div class="card h-80 cursor-pointer">
+                    <div class="card-content p-8 flex flex-col justify-between">
+                        <div class="space-y-6">
+                            <h3 class="text-2xl font-bold text-black dark:text-white uppercase tracking-wider leading-snug transition-colors duration-500">Cross-platform<br/>Mobile App</h3>
+                            <p class="text-neutral-500 text-sm leading-relaxed transition-colors duration-500">
+                                Single codebase for iOS and Android. 60fps animations. Offline-first design.
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">Flutter</span>
+                            <span class="text-xs px-3 py-1 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 uppercase tracking-widest transition-colors duration-500">Firebase</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 组件 2：无限跑马灯 -->
+        <section class="pb-20 overflow-hidden">
+            <div class="flex justify-between items-end mb-12 border-b border-neutral-200 dark:border-neutral-800 pb-4 transition-colors duration-500">
+                <h2 class="text-xl md:text-3xl font-medium text-black dark:text-white uppercase tracking-widest transition-colors duration-500">02 / Capabilities</h2>
+                <span class="text-neutral-500 dark:text-neutral-600 text-sm uppercase tracking-widest hidden md:inline transition-colors duration-500">Infinite Marquee</span>
+            </div>
+            
+            <div class="marquee-container py-6 relative">
+                <!-- 第一组元素 -->
+                <div class="marquee-content items-center text-5xl md:text-7xl font-black uppercase tracking-tighter">
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">JavaScript</div>
+                    <div class="text-stroke-primary transition-colors duration-500">React.js</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">TypeScript</div>
+                    <div class="text-stroke-secondary transition-colors duration-500">Tailwind</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Node.js</div>
+                    <div class="text-black dark:text-white transition-colors duration-500">Postgres</div>
+                </div>
+                <div class="marquee-content items-center text-5xl md:text-7xl font-black uppercase tracking-tighter" aria-hidden="true">
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">JavaScript</div>
+                    <div class="text-stroke-primary transition-colors duration-500">React.js</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">TypeScript</div>
+                    <div class="text-stroke-secondary transition-colors duration-500">Tailwind</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Node.js</div>
+                    <div class="text-black dark:text-white transition-colors duration-500">Postgres</div>
+                </div>
+            </div>
+            
+            <!-- 反向滚动的第二排 -->
+            <div class="marquee-container py-6 mt-2">
+                <div class="marquee-content items-center text-5xl md:text-7xl font-black uppercase tracking-tighter" style="animation-direction: reverse; animation-duration: 25s;">
+                    <div class="text-stroke-primary transition-colors duration-500">Figma</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Git / GitHub</div>
+                    <div class="text-black dark:text-white transition-colors duration-500">Framer</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Docker</div>
+                    <div class="text-stroke-secondary transition-colors duration-500">Redis</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">GraphQL</div>
+                </div>
+                <div class="marquee-content items-center text-5xl md:text-7xl font-black uppercase tracking-tighter" aria-hidden="true" style="animation-direction: reverse; animation-duration: 25s;">
+                    <div class="text-stroke-primary transition-colors duration-500">Figma</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Git / GitHub</div>
+                    <div class="text-black dark:text-white transition-colors duration-500">Framer</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">Docker</div>
+                    <div class="text-stroke-secondary transition-colors duration-500">Redis</div>
+                    <div class="text-neutral-200 dark:text-neutral-800 hover:text-black dark:hover:text-white transition-colors duration-300 cursor-default">GraphQL</div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- 交互逻辑脚本 -->
+    <script>
+        // -----------------------------------------------------
+        // 1. 探照灯光效卡片逻辑
+        // -----------------------------------------------------
+        document.getElementById("cards").onmousemove = e => {
+            // 遍历所有卡片，根据鼠标位置更新 CSS 变量
+            for(const card of document.getElementsByClassName("card")) {
+                const rect = card.getBoundingClientRect(),
+                      x = e.clientX - rect.left,
+                      y = e.clientY - rect.top;
+
+                card.style.setProperty("--mouse-x", `${x}px`);
+                card.style.setProperty("--mouse-y", `${y}px`);
+            };
+        }
+
+        // -----------------------------------------------------
+        // 2. 亮色/暗色模式切换逻辑
+        // -----------------------------------------------------
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlElement = document.documentElement;
+
+        // 初始化判断：检查本地存储，或者系统偏好
+        // 默认保留当前的深色模式体验
+        if (localStorage.theme === 'light') {
+            htmlElement.classList.remove('dark');
+        } else {
+            htmlElement.classList.add('dark');
+        }
+
+        // 点击切换事件
+        themeToggleBtn.addEventListener('click', () => {
+            if (htmlElement.classList.contains('dark')) {
+                htmlElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                htmlElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        });
+    </script>
+</body>
+</html>

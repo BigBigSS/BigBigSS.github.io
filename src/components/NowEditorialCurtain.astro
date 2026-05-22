@@ -1,0 +1,629 @@
+---
+import { formatDate } from "../lib/content";
+import SectionHeading from "./SectionHeading.astro";
+
+interface Props {
+  items: Array<{
+    entry: any;
+    rendered: any;
+  }>;
+}
+
+const { items } = Astro.props;
+const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
+---
+
+<section class="section now-editorial" data-now-experience>
+  <div class="page-shell">
+    <div class="now-editorial__header">
+      <SectionHeading index="03" label="CHRONICLES" title="CHRONICLES" />
+      <span class="now-editorial__range">[ SIGNAL ACQUIRED / LATEST ]</span>
+    </div>
+
+    <div class="now-editorial__list">
+      {
+        items.map(({ entry }, index) => (
+          <button
+            type="button"
+            class="now-editorial__row"
+            data-now-open={String(index)}
+          >
+            <div class="now-editorial__row-fill"></div>
+            <div class="now-editorial__row-title">{entry.data.summary}</div>
+            <div class="now-editorial__row-meta">
+              <span>{formatDate(entry.data.date)}</span>
+              <span>ARCHIVE LOG</span>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <div class="now-editorial__row-arrow">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </div>
+            </div>
+          </button>
+        ))
+      }
+    </div>
+
+    <a class="now-editorial__link" href="/now">EXPLORE FULL ARCHIVE →</a>
+  </div>
+
+  <div class="now-editorial__curtain" aria-hidden="true"></div>
+
+  <div class="now-editorial__detail-layer" aria-hidden="true">
+    {
+      items.map(({ entry, rendered }, index) => {
+        const { Content } = rendered;
+
+        return (
+          <article
+            class="now-editorial__detail"
+            data-now-panel={String(index)}
+            hidden
+          >
+            <div class="now-editorial__detail-topbar">
+              <span class="now-editorial__detail-index">
+                ARCHIVE LOG / {String(index + 1).padStart(2, "0")}
+              </span>
+
+              <button type="button" class="now-editorial__detail-close" data-now-close>
+                <span>RETURN / ESC</span>
+                <span class="now-editorial__close-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </span>
+              </button>
+            </div>
+
+            <div class="now-editorial__detail-body">
+              <h3 class="now-editorial__detail-title">{entry.data.summary}</h3>
+
+              <div class="now-editorial__detail-meta">
+                <div>
+                  <span>Date</span>
+                  <strong>{formatDate(entry.data.date)}</strong>
+                </div>
+                <div>
+                  <span>Type</span>
+                  <strong>DATA LOG</strong>
+                </div>
+                <div>
+                  <span>Mode</span>
+                  <strong>TRANSMISSION</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>Open</strong>
+                </div>
+              </div>
+
+              <div
+                class="now-editorial__detail-visual"
+                style={`--tone: ${visualTones[index % visualTones.length]};`}
+              >
+                <span>SIGNAL ACQUIRED // DETAILED VIEW</span>
+              </div>
+
+              <div class="now-editorial__detail-columns">
+                <div class="now-editorial__detail-lead">
+                  <h4>DECRYPTING THE LATEST TRANSMISSION.</h4>
+                </div>
+
+                <div class="now-editorial__detail-copy">
+                  <p class="now-editorial__detail-summary">{entry.data.summary}</p>
+                  <div class="prose-shell">
+                    <Content />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        );
+      })
+    }
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-now-experience]").forEach((root) => {
+    const openButtons = Array.from(root.querySelectorAll<HTMLElement>("[data-now-open]"));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-now-panel]"));
+    const closeButtons = Array.from(root.querySelectorAll<HTMLElement>("[data-now-close]"));
+    const detailLayer = root.querySelector<HTMLElement>(".now-editorial__detail-layer");
+    let openTimer = 0;
+    let closeTimer = 0;
+
+    const setActivePanel = (index: string | null) => {
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.nowPanel !== index;
+      });
+    };
+
+    const cleanupTimers = () => {
+      if (openTimer) {
+        window.clearTimeout(openTimer);
+        openTimer = 0;
+      }
+
+      if (closeTimer) {
+        window.clearTimeout(closeTimer);
+        closeTimer = 0;
+      }
+    };
+
+    const open = (index: string) => {
+      cleanupTimers();
+      setActivePanel(index);
+      root.dataset.state = "entering";
+      document.body.style.overflow = "hidden";
+
+      openTimer = window.setTimeout(() => {
+        root.dataset.state = "open";
+        detailLayer?.setAttribute("aria-hidden", "false");
+      }, 520);
+    };
+
+    const close = () => {
+      if (root.dataset.state === "idle" || !root.dataset.state) {
+        return;
+      }
+
+      cleanupTimers();
+      root.dataset.state = "exiting";
+      detailLayer?.setAttribute("aria-hidden", "true");
+
+      closeTimer = window.setTimeout(() => {
+        root.dataset.state = "idle";
+        document.body.style.overflow = "";
+        setActivePanel(null);
+      }, 720);
+    };
+
+    openButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const index = button.dataset.nowOpen;
+        if (index) {
+          open(index);
+        }
+      });
+    });
+
+    closeButtons.forEach((button) => {
+      button.addEventListener("click", close);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        close();
+      }
+    });
+
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        cleanupTimers();
+        document.body.style.overflow = "";
+      },
+      { once: true },
+    );
+  });
+</script>
+
+<style>
+  .now-editorial {
+    position: relative;
+  }
+
+  .now-editorial__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-end;
+  }
+
+  .now-editorial__range {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__list {
+    margin-top: 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  :global(body.light-mode) .now-editorial__list {
+    border-top-color: rgba(0, 0, 0, 0.12);
+  }
+
+  .now-editorial__row {
+    position: relative;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 28px;
+    padding: 22px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .now-editorial__row:hover,
+  .now-editorial__row:focus-visible {
+    border-bottom-color: rgba(255, 255, 255, 0.2);
+  }
+
+  :global(body.light-mode) .now-editorial__row {
+    border-bottom-color: rgba(0, 0, 0, 0.05);
+  }
+
+  :global(body.light-mode) .now-editorial__row:hover,
+  :global(body.light-mode) .now-editorial__row:focus-visible {
+    border-bottom-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .now-editorial__row-fill {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin-inline: -24px;
+    padding-inline: 24px;
+    transform: scaleY(0);
+    transform-origin: bottom;
+    background: #1a1a1a;
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: -1;
+  }
+
+  :global(body.light-mode) .now-editorial__row-fill {
+    background: #f0f0f0;
+  }
+
+  .now-editorial__row:hover .now-editorial__row-fill,
+  .now-editorial__row:focus-visible .now-editorial__row-fill {
+    transform: scaleY(1);
+  }
+
+  .now-editorial__row-title {
+    font-size: clamp(1.8rem, 3.2vw, 3.4rem);
+    font-weight: 600;
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .now-editorial__row:hover .now-editorial__row-title,
+  .now-editorial__row:focus-visible .now-editorial__row-title {
+    transform: translateX(16px);
+  }
+
+  .now-editorial__row-meta {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .now-editorial__row:hover .now-editorial__row-meta,
+  .now-editorial__row:focus-visible .now-editorial__row-meta {
+    transform: translateX(-16px);
+  }
+
+  /* — Arrow icon (matches demo2 ArrowRight) — */
+  .now-editorial__row-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    transform: translateX(-16px);
+    transition:
+      opacity 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+      transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    flex-shrink: 0;
+  }
+
+  :global(body.light-mode) .now-editorial__row-arrow {
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .now-editorial__row:hover .now-editorial__row-arrow,
+  .now-editorial__row:focus-visible .now-editorial__row-arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .now-editorial__link {
+    display: inline-flex;
+    margin-top: 24px;
+    color: var(--text-primary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__curtain {
+    position: fixed;
+    inset: 0;
+    z-index: 220;
+    pointer-events: none;
+    transform: translateY(100%);
+    background: var(--text-primary);
+    transition: transform 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+  }
+
+  .now-editorial__detail-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 230;
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    background: var(--bg);
+    color: var(--text-primary);
+    transition: opacity 0.4s ease;
+  }
+
+  .now-editorial[data-state="entering"] .now-editorial__curtain,
+  .now-editorial[data-state="open"] .now-editorial__curtain {
+    transform: translateY(0);
+  }
+
+  .now-editorial[data-state="exiting"] .now-editorial__curtain {
+    transform: translateY(-100%);
+  }
+
+  .now-editorial[data-state="open"] .now-editorial__detail-layer {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .now-editorial__detail {
+    min-height: 100%;
+    padding: 96px 24px 80px;
+  }
+
+  .now-editorial__detail-topbar,
+  .now-editorial__detail-body {
+    width: min(1200px, calc(100vw - 48px));
+    margin-inline: auto;
+  }
+
+  .now-editorial__detail-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 48px;
+  }
+
+  .now-editorial__detail-index {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__detail-close {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 40px;
+    padding: 0 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    background: transparent;
+    color: inherit;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.70rem;
+    font-weight: 500;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    cursor: pointer;
+    overflow: hidden;
+    transition: color 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: 1;
+  }
+
+  .now-editorial__detail-close::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--text-primary);
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: -1;
+  }
+
+  .now-editorial__close-icon {
+    display: flex;
+    transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .now-editorial__detail-close:hover,
+  .now-editorial__detail-close:focus-visible {
+    color: var(--bg);
+    outline: none;
+  }
+
+  .now-editorial__detail-close:hover::before,
+  .now-editorial__detail-close:focus-visible::before {
+    transform: scaleY(1);
+  }
+
+  .now-editorial__detail-close:hover .now-editorial__close-icon,
+  .now-editorial__detail-close:focus-visible .now-editorial__close-icon {
+    transform: rotate(90deg);
+  }
+
+  :global(body.light-mode) .now-editorial__detail-close {
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  .now-editorial__detail-title {
+    margin: 0;
+    max-width: 10ch;
+    font-size: clamp(3.4rem, 9vw, 8.4rem);
+    font-weight: 800;
+    line-height: 0.85;
+    letter-spacing: -0.08em;
+  }
+
+  .now-editorial__detail-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin-top: 32px;
+    padding: 28px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .now-editorial__detail-meta > div {
+    display: grid;
+    gap: 10px;
+  }
+
+  .now-editorial__detail-meta > div + div {
+    padding-left: 24px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .now-editorial__detail-meta span {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__detail-meta strong {
+    font-size: clamp(1rem, 1.8vw, 1.45rem);
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  .now-editorial__detail-visual {
+    position: relative;
+    margin-top: 28px;
+    aspect-ratio: 21 / 9;
+    overflow: hidden;
+    background: var(--tone);
+  }
+
+  .now-editorial__detail-visual::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.3;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+
+  .now-editorial__detail-visual span {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    mix-blend-mode: difference;
+  }
+
+  .now-editorial__detail-columns {
+    display: grid;
+    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+    gap: 48px;
+    margin-top: 40px;
+  }
+
+  .now-editorial__detail-lead h4 {
+    margin: 0;
+    font-size: clamp(2rem, 3vw, 3rem);
+    line-height: 0.98;
+    letter-spacing: -0.05em;
+  }
+
+  .now-editorial__detail-summary {
+    margin: 0 0 20px;
+    color: var(--text-primary);
+    font-size: 1.16rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 980px) {
+    .now-editorial__row {
+      grid-template-columns: 1fr;
+    }
+
+    .now-editorial__row-meta {
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .now-editorial__detail-meta {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .now-editorial__detail-meta > div + div {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .now-editorial__detail-columns {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .now-editorial__header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .now-editorial__detail {
+      padding-top: 84px;
+    }
+
+    .now-editorial__detail-topbar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .now-editorial__detail-meta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

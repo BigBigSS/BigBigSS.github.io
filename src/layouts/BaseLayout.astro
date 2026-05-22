@@ -1,0 +1,187 @@
+---
+import Footer from "../components/Footer.astro";
+import NavBar from "../components/NavBar.astro";
+import { site } from "../data/site";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  preloadImages?: string[];
+}
+
+const {
+  title = `${site.name} · ${site.slogan}`,
+  description = site.description,
+  preloadImages = [],
+} = Astro.props;
+const preloadList = [...new Set(preloadImages)].slice(0, 12);
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=20260519b" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260519b" />
+    <link rel="canonical" href={new URL(Astro.url.pathname, site.url).toString()} />
+    <link rel="preconnect" href="https://picsum.photos" />
+    <link rel="dns-prefetch" href="https://picsum.photos" />
+    {
+      preloadList.map((href) => (
+        <link rel="preload" as="image" href={href} />
+      ))
+    }
+    <title>{title}</title>
+    <script is:inline>
+      (function () {
+        try {
+          if (localStorage.getItem("theme") === "light") {
+            document.documentElement.classList.add("theme-preboot-light");
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body class:list={[]}>
+    <a class="skip-link" href="#content">跳到正文</a>
+    <NavBar currentPath={Astro.url.pathname} />
+
+    <button class="theme-toggle ui-glass" id="theme-btn" type="button" aria-label="Toggle Theme">
+      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" fill="none"></circle>
+        <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2"></line>
+        <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2"></line>
+        <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2"></line>
+        <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2"></line>
+      </svg>
+    </button>
+
+    <main id="content">
+      <slot />
+    </main>
+    <Footer />
+
+    <script>
+      const htmlEl = document.documentElement;
+      const body = document.body;
+      const btn = document.getElementById("theme-btn");
+      const globalWindow = window as typeof window & {
+        __siteScrollCleanup?: () => void;
+      };
+      const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const viewTransitionDoc = document as Document & {
+        startViewTransition?: (callback: () => void) => {
+          finished: Promise<void>;
+        };
+      };
+      let themeSwitchTimer = 0;
+
+      if (htmlEl.classList.contains("theme-preboot-light")) {
+        body.classList.add("light-mode");
+        htmlEl.classList.remove("theme-preboot-light");
+      }
+
+      const broadcast = (name: string, detail?: Record<string, string>) => {
+        window.dispatchEvent(
+          new CustomEvent(name, {
+            detail,
+          })
+        );
+      };
+
+      const finishThemeSwitching = () => {
+        if (themeSwitchTimer) {
+          window.clearTimeout(themeSwitchTimer);
+          themeSwitchTimer = 0;
+        }
+        if (!body.classList.contains("theme-switching")) return;
+        body.classList.remove("theme-switching");
+        broadcast("theme-switch-end", {
+          mode: body.classList.contains("light-mode") ? "light" : "dark",
+        });
+      };
+
+      const markThemeSwitching = () => {
+        if (!body.classList.contains("theme-switching")) {
+          body.classList.add("theme-switching");
+          broadcast("theme-switch-start", {
+            mode: body.classList.contains("light-mode") ? "light" : "dark",
+          });
+        }
+        if (themeSwitchTimer) {
+          window.clearTimeout(themeSwitchTimer);
+        }
+        themeSwitchTimer = window.setTimeout(() => {
+          finishThemeSwitching();
+        }, 520);
+      };
+
+      const applyTheme = (nextMode: "light" | "dark") => {
+        body.classList.toggle("light-mode", nextMode === "light");
+        broadcast("theme-change", { mode: nextMode });
+        try {
+          localStorage.setItem("theme", nextMode);
+        } catch (_) {}
+      };
+
+      btn?.addEventListener("click", (e) => {
+        const nextMode = body.classList.contains("light-mode") ? "dark" : "light";
+        btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+        void btn.offsetWidth;
+        btn.classList.add("is-transitioning", `is-to-${nextMode}`);
+        window.setTimeout(() => {
+          btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+        }, 520);
+        let didCommitTheme = false;
+        const commitTheme = () => {
+          if (didCommitTheme) return;
+          didCommitTheme = true;
+          markThemeSwitching();
+          applyTheme(nextMode);
+        };
+
+        if (viewTransitionDoc.startViewTransition && !reducedMotionQuery.matches) {
+          htmlEl.style.setProperty("--click-x", `${e.clientX}px`);
+          htmlEl.style.setProperty("--click-y", `${e.clientY}px`);
+          htmlEl.classList.add("is-view-transitioning");
+
+          try {
+            const transition = viewTransitionDoc.startViewTransition(() => {
+              commitTheme();
+            });
+            window.setTimeout(() => {
+              commitTheme();
+            }, 80);
+            transition.finished.catch(() => {
+              commitTheme();
+            }).finally(() => {
+              htmlEl.classList.remove("is-view-transitioning");
+              finishThemeSwitching();
+            });
+            return;
+          } catch {
+            htmlEl.classList.remove("is-view-transitioning");
+          }
+        }
+
+        commitTheme();
+      });
+
+      btn?.addEventListener("animationend", () => {
+        btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+      });
+
+      globalWindow.__siteScrollCleanup?.();
+      globalWindow.__siteScrollCleanup = () => {};
+    </script>
+  </body>
+</html>

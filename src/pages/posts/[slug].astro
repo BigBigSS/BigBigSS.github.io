@@ -1,0 +1,74 @@
+---
+import { getCollection, render } from "astro:content";
+import { site } from "../../data/site";
+import { formatDate, publishedPosts } from "../../lib/content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const posts = publishedPosts(await getCollection("posts"));
+
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+
+<BaseLayout title={`${post.data.title} · ${site.name}`} description={post.data.description}>
+  <section class="section">
+    <div class="copy-shell">
+      <a class="post-back" href="/posts">
+        <span aria-hidden="true">←</span>
+        返回文章列表
+      </a>
+
+      <header class="post-header">
+        <p class="eyebrow">04 / 文章</p>
+        <h1 class="post-header__title">{post.data.title}</h1>
+        <p class="post-header__description">{post.data.description}</p>
+        <div class="meta-line">
+          <span>{formatDate(post.data.date)}</span>
+          <span>{post.data.tags.join(" · ")}</span>
+        </div>
+      </header>
+
+      <article class="prose-shell post-body">
+        <Content />
+      </article>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .post-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .post-header {
+    margin-top: 28px;
+  }
+
+  .post-header__title {
+    margin: 0;
+    font-size: clamp(2.5rem, 5vw, 4.4rem);
+    line-height: 1.04;
+    letter-spacing: -0.05em;
+  }
+
+  .post-header__description {
+    margin: 18px 0 0;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+  }
+
+  .post-body {
+    margin-top: 42px;
+  }
+</style>

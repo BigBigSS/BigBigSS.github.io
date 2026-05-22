@@ -1,26 +1,34 @@
 {
-  "name": "me",
+  "name": "linshen-site",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "node ./scripts/dev-with-admin.mjs",
+    "start": "node ./scripts/dev-with-admin.mjs",
+    "dev:site": "npm run gallery:generate && astro dev",
+    "admin:server": "node ./scripts/content-admin-server.mjs",
+    "build": "npm run gallery:generate && astro build",
+    "preview": "astro preview",
+    "check": "npm run gallery:generate && astro check",
+    "gallery:generate": "node ./scripts/generate-gallery.mjs"
+  },
+  "overrides": {
+    "vite": "7.3.2"
   },
   "dependencies": {
-    "next": "16.2.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@astrojs/check": "^0.9.8",
+    "@astrojs/mdx": "^5.0.3",
+    "@astrojs/rss": "^4.0.18",
+    "@astrojs/sitemap": "^3.7.2",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource/dm-sans": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/three": "^0.184.0",
+    "astro": "^6.1.8",
+    "tailwindcss": "^4.2.2",
+    "three": "^0.184.0",
+    "typescript": "^5.9.3"
   }
 }

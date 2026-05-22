@@ -1,0 +1,16 @@
+---
+interface Props {
+  index: string;
+  label: string;
+  title: string;
+  lead?: string;
+}
+
+const { index, label, title, lead } = Astro.props;
+---
+
+<div>
+  <p class="eyebrow">{index} / {label}</p>
+  <h2 class="section-title">{title}</h2>
+  {lead && <p class="section-lead">{lead}</p>}
+</div>

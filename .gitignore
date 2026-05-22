@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/.astro/
+/dist/
 
 # production
 /build
@@ -39,3 +41,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local/IDE files
+.idea/
+*.plist
+

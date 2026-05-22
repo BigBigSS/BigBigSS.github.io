@@ -1,0 +1,389 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, Sun, Moon, X } from 'lucide-react';
+
+// 项目数据
+const WORKS = [
+  { 
+    title: "Neural Sync", 
+    category: "AI Dashboard", 
+    year: "2026", 
+    client: "Future Corp.",
+    color: "#e2e2e2" // 用于悬停图片的背景色区分
+  },
+  { 
+    title: "Aura Spatial", 
+    category: "WebXR Experience", 
+    year: "2025", 
+    client: "Visionary Labs",
+    color: "#1a1a1a"
+  },
+  { 
+    title: "Chronos Protocol", 
+    category: "Fintech UI/UX", 
+    year: "2024", 
+    client: "Global Bank",
+    color: "#c4c4c4"
+  }
+];
+
+export default function App() {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // 高级转场状态管理: idle -> entering -> open -> exiting -> idle
+  const [projectState, setProjectState] = useState('idle'); 
+  const [activeProject, setActiveProject] = useState(null);
+
+  const containerRef = useRef(null);
+  const cardRef = useRef(null);
+  
+  const target = useRef({ x: 0, y: 0 });
+  const current = useRef({ x: 0, y: 0 });
+  const requestRef = useRef();
+
+  // 处理项目打开：触发幕布动画 (更干脆)
+  const handleOpenProject = (work) => {
+    setActiveProject(work);
+    setProjectState('entering');
+    // 等待幕布遮挡全屏后，显示内容 (缩短为 500ms)
+    setTimeout(() => setProjectState('open'), 500); 
+  };
+
+  // 处理项目关闭：触发幕布退场
+  const handleCloseProject = () => {
+    setProjectState('exiting');
+    setTimeout(() => {
+      setProjectState('idle');
+      setActiveProject(null);
+    }, 700); 
+  };
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    const handleMouseMove = (e) => {
+      if (isMobile) return;
+      const { innerWidth, innerHeight } = window;
+      const x = (e.clientX / innerWidth) * 2 - 1;
+      const y = (e.clientY / innerHeight) * 2 - 1;
+      target.current = { x, y };
+    };
+
+    const animate = () => {
+      if (!isMobile) {
+        // Hero 3D 缓动
+        current.current.x += (target.current.x - current.current.x) * 0.05;
+        current.current.y += (target.current.y - current.current.y) * 0.05;
+
+        if (cardRef.current) {
+          const rotateX = -current.current.y * 15;
+          const rotateY = current.current.x * 15;
+          const translateZ = isHovered ? 50 : 0;
+          cardRef.current.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(${translateZ}px)`;
+        }
+      }
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    requestRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('mousemove', handleMouseMove);
+      cancelAnimationFrame(requestRef.current);
+    };
+  }, [isMobile, isHovered]);
+
+  // 判断是否应该隐藏主页滚动条 (在打开项目时)
+  useEffect(() => {
+    if (projectState !== 'idle') {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [projectState]);
+
+  return (
+    <div className={`min-h-screen font-sans transition-colors duration-500 ${
+      isDarkMode 
+        ? 'bg-[#090909] text-[#e5e5e5] selection:bg-white/20 selection:text-white' 
+        : 'bg-[#fcfcfc] text-[#111] selection:bg-black selection:text-white'
+    }`}>
+      
+      {/* 注入全局 CSS 动画 */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes float3d {
+          0% { transform: rotateX(5deg) rotateY(-5deg) translateY(0px); }
+          50% { transform: rotateX(-5deg) rotateY(5deg) translateY(-15px); }
+          100% { transform: rotateX(5deg) rotateY(-5deg) translateY(0px); }
+        }
+        .mobile-float { animation: float3d 8s ease-in-out infinite; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 顶级缓动曲线：更干脆、爆发力更强 */
+        .ease-power { transition-timing-function: cubic-bezier(0.7, 0, 0.2, 1); }
+      `}} />
+
+      {/* 主题切换按钮 */}
+      <button
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        className={`fixed top-6 right-6 md:top-8 md:right-12 z-40 p-3 rounded-full backdrop-blur-md border transition-all duration-300 ${
+          isDarkMode 
+            ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10' 
+            : 'border-black/10 bg-black/5 text-black hover:bg-black/10'
+        } ${projectState !== 'idle' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      >
+        {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
+      {/* =========================================================================
+                                     主页内容区
+      ========================================================================= */}
+      <main className={`relative z-10 transition-transform duration-[800ms] ease-power ${
+        projectState !== 'idle' ? 'scale-95 blur-md opacity-0 pointer-events-none' : 'scale-100 blur-0 opacity-100'
+      }`}>
+        
+        {/* --- HERO 区域 --- */}
+        <section className="relative w-full h-screen flex flex-col items-center justify-center overflow-hidden">
+          <div className={`absolute inset-0 bg-[size:64px_64px] pointer-events-none opacity-40 transition-colors duration-500 ${
+            isDarkMode 
+              ? 'bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)]' 
+              : 'bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] mix-blend-multiply'
+          }`}></div>
+
+          <div 
+            ref={containerRef}
+            className="relative w-full max-w-[90vw] md:max-w-[80vw] h-[50vh] flex items-center justify-center group"
+            style={{ perspective: '1500px' }}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            <div 
+              ref={cardRef}
+              className={`relative w-full h-full flex items-center justify-center transition-transform duration-100 ease-linear ${isMobile ? 'mobile-float' : ''}`}
+              style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}
+            >
+              <div 
+                className={`absolute inset-0 backdrop-blur-md rounded-3xl transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${
+                  isDarkMode 
+                    ? 'bg-[#111]/50 border border-white/5 shadow-[0_0_40px_rgba(255,255,255,0.03)]' 
+                    : 'bg-white/40 border border-white/50 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)]'
+                } ${isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
+                style={{ transform: 'translateZ(-50px)' }}
+              />
+
+              <div 
+                className={`absolute flex items-center justify-center transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] w-full ${
+                  isHovered ? 'opacity-0 -translate-y-20 scale-95 blur-xl pointer-events-none' : 'opacity-100 translate-y-0 scale-100 blur-0'
+                }`}
+                style={{ transform: 'translateZ(20px)' }}
+              >
+                <h1 
+                  className={`text-[12vw] md:text-[8vw] font-black tracking-tighter leading-none text-center transition-colors duration-500 ${
+                    isDarkMode ? 'text-[#ededed]' : 'text-[#111]'
+                  }`}
+                  onMouseEnter={() => setIsHovered(true)}
+                >
+                  HELLO, I’M <span className={`italic font-serif font-light transition-colors duration-500 text-gray-500`}>Leo</span>
+                </h1>
+              </div>
+
+              <div 
+                className={`absolute flex flex-col items-center justify-center transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-75 w-full px-6 ${
+                  isHovered ? 'opacity-100 translate-y-0 scale-100 blur-0' : 'opacity-0 translate-y-20 scale-105 blur-xl pointer-events-none'
+                }`}
+                style={{ transform: 'translateZ(60px)' }}
+              >
+                <div className="flex flex-col items-center space-y-6 md:space-y-8">
+                  <div className={`px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest uppercase backdrop-blur-sm transition-colors duration-500 ${
+                    isDarkMode ? 'border border-white/10 bg-white/5 text-white/70' : 'border border-black/10 bg-white/50 text-black/60'
+                  }`}>
+                    System Activated
+                  </div>
+                  <h2 className={`text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-center leading-tight transition-colors duration-500 ${
+                    isDarkMode ? 'text-[#ededed]' : 'text-[#111]'
+                  }`}>
+                    AI Agent Engineer <br className="hidden md:block" />
+                    <span className="text-gray-500 mx-4 font-light hidden md:inline">/</span>
+                    <span className="block md:inline mt-2 md:mt-0">Creative Developer</span>
+                  </h2>
+                  <p className={`uppercase tracking-[0.2em] text-xs md:text-sm font-medium mt-4 transition-colors duration-500 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Building interactive experiences
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* --- 极简项目展示区 --- */}
+        <section id="works" className="py-20 px-6 md:px-20 max-w-7xl mx-auto pb-40">
+          <div className={`flex justify-between items-end mb-16 border-b pb-8 transition-colors duration-500 ${
+            isDarkMode ? 'border-white/10' : 'border-black/10'
+          }`}>
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter">Selected Works.</h2>
+            <span className={`pb-2 text-sm uppercase tracking-widest transition-colors duration-500 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>( 2023 - 2026 )</span>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            {WORKS.map((work, index) => (
+              <div 
+                key={index} 
+                onClick={() => handleOpenProject(work)}
+                className={`group relative pb-8 pt-4 flex flex-col md:flex-row md:items-center justify-between cursor-pointer border-b transition-colors duration-500 ${
+                  isDarkMode ? 'border-white/5 hover:border-white/20' : 'border-black/5'
+                }`}
+              >
+                {/* 悬停背景效果 */}
+                <div className={`absolute inset-0 scale-y-0 origin-bottom group-hover:scale-y-100 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] -z-10 -mx-6 px-6 ${
+                  isDarkMode ? 'bg-[#1a1a1a]' : 'bg-[#f0f0f0]'
+                }`}></div>
+                
+                <h3 className="text-3xl md:text-5xl font-semibold tracking-tight transition-transform duration-500 group-hover:translate-x-4">{work.title}</h3>
+                
+                <div className="flex items-center gap-12 mt-4 md:mt-0 transition-transform duration-500 group-hover:-translate-x-4">
+                  <span className={`text-sm tracking-widest uppercase transition-colors duration-500 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{work.category}</span>
+                  <span className="text-sm font-bold">{work.year}</span>
+                  <div className={`w-10 h-10 rounded-full border flex items-center justify-center opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500 ${
+                    isDarkMode ? 'border-white/20' : 'border-black/20'
+                  }`}>
+                    <ArrowRight size={16} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      {/* =========================================================================
+                             全屏无缝转场幕布 (Curtain Sweep)
+      ========================================================================= */}
+      <div 
+        className={`fixed inset-0 z-50 pointer-events-none transition-transform duration-[600ms] ease-power ${
+          isDarkMode ? 'bg-[#1f1f1f]' : 'bg-[#111]'
+        }`}
+        style={{
+          // 从下往上扫入，退出时向上扫出
+          transform: projectState === 'idle' 
+            ? 'translateY(100%)' 
+            : projectState === 'entering' 
+              ? 'translateY(0%)'
+              : projectState === 'open'
+                ? 'translateY(0%)'
+                : 'translateY(-100%)'
+        }}
+      />
+
+      {/* =========================================================================
+                          全屏社论式详情页 (Editorial Detail View)
+      ========================================================================= */}
+      <div 
+        className={`fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden hide-scrollbar transition-all duration-[800ms] ease-power ${
+          isDarkMode ? 'bg-[#090909] text-[#e5e5e5]' : 'bg-[#fcfcfc] text-[#111]'
+        } ${projectState === 'open' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
+      >
+        {activeProject && (
+          <div className="min-h-full w-full flex flex-col pt-12 md:pt-24 pb-32">
+            
+            {/* 顶栏: 返回按钮 */}
+            <div className="px-6 md:px-16 flex justify-between items-center mb-16 md:mb-32">
+              <span className={`text-xs font-mono uppercase tracking-widest opacity-50 transition-all duration-[600ms] delay-100 ease-power ${projectState === 'open' ? 'translate-y-0 opacity-50' : 'translate-y-4 opacity-0'}`}>
+                Case Study / 0{WORKS.indexOf(activeProject) + 1}
+              </span>
+              
+              <button 
+                onClick={handleCloseProject}
+                className={`group flex items-center gap-4 px-6 py-3 rounded-full border transition-all duration-[500ms] ease-power ${
+                  isDarkMode 
+                    ? 'border-white/20 hover:bg-white text-[#e5e5e5] hover:text-black' 
+                    : 'border-black/20 hover:bg-black text-black hover:text-white'
+                } ${projectState === 'open' ? 'translate-y-0 opacity-100 delay-100' : '-translate-y-4 opacity-0 delay-0'}`}
+              >
+                <span className="text-xs font-bold uppercase tracking-widest">Back to Index</span>
+                <X size={16} className="transition-transform duration-500 group-hover:rotate-90" />
+              </button>
+            </div>
+
+            <div className="px-6 md:px-16 max-w-[120rem] mx-auto w-full flex flex-col">
+              
+              {/* 巨型标题 */}
+              <h1 
+                className={`text-[15vw] md:text-[12vw] font-black tracking-tighter leading-[0.8] mb-12 md:mb-24 transition-all duration-[800ms] delay-75 ease-power ${
+                  projectState === 'open' ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
+                }`}
+              >
+                {activeProject.title}
+              </h1>
+              
+              {/* 元数据区域：采用极简边框分割的杂志风格 */}
+              <div 
+                className={`grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-0 border-t py-12 md:py-16 transition-all duration-[800ms] delay-100 ease-power ${
+                  isDarkMode ? 'border-white/10' : 'border-black/20'
+                } ${projectState === 'open' ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'}`}
+              >
+                <div className="flex flex-col gap-4">
+                  <span className="text-[10px] tracking-[0.2em] uppercase opacity-40 font-bold">Client</span>
+                  <span className="text-xl md:text-2xl font-medium tracking-tight">{activeProject.client}</span>
+                </div>
+                <div className="flex flex-col gap-4 md:border-l md:pl-12 border-black/10 dark:border-white/10">
+                  <span className="text-[10px] tracking-[0.2em] uppercase opacity-40 font-bold">Role</span>
+                  <span className="text-xl md:text-2xl font-medium tracking-tight">{activeProject.category}</span>
+                </div>
+                <div className="flex flex-col gap-4 md:border-l md:pl-12 border-black/10 dark:border-white/10">
+                  <span className="text-[10px] tracking-[0.2em] uppercase opacity-40 font-bold">Year</span>
+                  <span className="text-xl md:text-2xl font-medium tracking-tight">{activeProject.year}</span>
+                </div>
+                <div className="flex flex-col gap-4 md:border-l md:pl-12 border-black/10 dark:border-white/10">
+                  <span className="text-[10px] tracking-[0.2em] uppercase opacity-40 font-bold">Platform</span>
+                  <span className="text-xl md:text-2xl font-medium tracking-tight">Web & Spatial</span>
+                </div>
+              </div>
+
+              {/* 核心视觉图占位: 占满宽度的电影画幅 */}
+              <div 
+                className={`w-full aspect-[4/3] md:aspect-[21/9] bg-[#111] relative overflow-hidden transition-all duration-[1000ms] delay-150 ease-power ${
+                  projectState === 'open' ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+                }`}
+              >
+                {/* 图片占位符 - 带有噪点滤镜 */}
+                <div className="absolute inset-0 opacity-40" style={{ backgroundColor: activeProject.color }}></div>
+                <div className="absolute inset-0 opacity-30 mix-blend-overlay" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white text-sm font-mono tracking-widest uppercase opacity-50 mix-blend-difference">Interactive Canvas / Video Reel</span>
+                </div>
+              </div>
+
+              {/* 介绍正文：两栏式报纸排版 */}
+              <div 
+                className={`grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-24 mt-20 md:mt-32 transition-all duration-[1000ms] delay-200 ease-power ${
+                  projectState === 'open' ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
+                }`}
+              >
+                <div className="md:col-span-4">
+                  <h4 className="text-3xl md:text-4xl font-bold tracking-tighter">Defining the <br/>New Paradigm.</h4>
+                </div>
+                <div className="md:col-span-8 flex flex-col md:flex-row gap-8 md:gap-16 text-lg md:text-xl opacity-80 leading-relaxed font-light">
+                  <p className="flex-1">
+                    Redefining the standard required a complete teardown of conventional UX patterns. The primary objective was to bridge the gap between complex algorithmic structures and human-centric design, creating a space where data feels alive rather than static.
+                  </p>
+                  <p className="flex-1">
+                    We stripped away the superfluous, focusing entirely on a seamless, intuitive user journey through elegant spatial layouts, crisp typography, and physics-based micro-interactions driven by WebGL.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}

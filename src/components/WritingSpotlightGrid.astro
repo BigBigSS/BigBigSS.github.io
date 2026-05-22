@@ -1,0 +1,283 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { formatCompactDate } from "../lib/content";
+import SectionHeading from "./SectionHeading.astro";
+
+interface Props {
+  posts: CollectionEntry<"posts">[];
+}
+
+const { posts } = Astro.props;
+---
+
+<section class="section writing-spotlight" id="writing">
+  <div class="page-shell">
+    <div class="writing-spotlight__header">
+      <SectionHeading index="04" label="LABORATORY" title="LABORATORY" />
+      <span class="writing-spotlight__hint">INTERACTIVE SURFACE</span>
+    </div>
+
+    <div class="writing-spotlight__grid" data-writing-spotlight>
+      {
+        posts.map((post, index) => (
+          <article
+            class:list={[
+              "writing-spotlight__card",
+              { "writing-spotlight__card--feature": index === 0 },
+            ]}
+            data-writing-card
+          >
+            <div class="writing-spotlight__card-surface">
+              <a class="writing-spotlight__link" href={`/posts/${post.id}/`}>
+                <div class="writing-spotlight__top">
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <span>{formatCompactDate(post.data.date)}</span>
+                </div>
+
+                <div class="writing-spotlight__body">
+                  <h3>{post.data.title}</h3>
+                  <p>{post.data.description}</p>
+                </div>
+
+                <ul class="tag-list">
+                  {post.data.tags.map((tag) => <li class="tag-pill">{tag}</li>)}
+                </ul>
+              </a>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-writing-spotlight]").forEach((root) => {
+    const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-writing-card]"));
+    if (!cards.length) {
+      return;
+    }
+
+    const reset = () => {
+      cards.forEach((card) => {
+        card.style.setProperty("--mouse-x", `${card.clientWidth / 2}px`);
+        card.style.setProperty("--mouse-y", `${card.clientHeight / 2}px`);
+      });
+    };
+
+    const onMove = (event: PointerEvent) => {
+      cards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty("--mouse-x", `${event.clientX - rect.left}px`);
+        card.style.setProperty("--mouse-y", `${event.clientY - rect.top}px`);
+      });
+    };
+
+    reset();
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerleave", reset);
+
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        root.removeEventListener("pointermove", onMove);
+        root.removeEventListener("pointerleave", reset);
+      },
+      { once: true },
+    );
+  });
+</script>
+
+<style>
+  .writing-spotlight {
+    --card-base-bg: rgba(255, 255, 255, 0.05);
+    --card-content-bg: rgb(10, 10, 10);
+    --spotlight-inner: rgba(255, 255, 255, 0.03);
+    --spotlight-outer: rgba(255, 255, 255, 0.45);
+    padding-bottom: clamp(80px, 9vw, 140px);
+  }
+
+  :global(body.light-mode) .writing-spotlight {
+    --card-base-bg: rgba(0, 0, 0, 0.075);
+    --card-content-bg: rgb(250, 250, 250);
+    --spotlight-inner: rgba(0, 0, 0, 0.055);
+    --spotlight-outer: rgba(0, 0, 0, 0.42);
+  }
+
+  .writing-spotlight__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  :global(body.light-mode) .writing-spotlight__header {
+    border-bottom-color: rgba(0, 0, 0, 0.12);
+  }
+
+  .writing-spotlight__hint {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .writing-spotlight__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin-top: 22px;
+    margin-bottom: clamp(28px, 4vw, 56px);
+  }
+
+  .writing-spotlight__card {
+    position: relative;
+    background: var(--card-base-bg);
+    overflow: hidden;
+  }
+
+  .writing-spotlight__card {
+    box-shadow: inset 0 0 0 1px var(--card-base-bg);
+  }
+
+  .writing-spotlight__card--feature {
+    grid-column: span 2;
+  }
+
+  .writing-spotlight__card::before,
+  .writing-spotlight__card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+
+  .writing-spotlight__card::before {
+    background:
+      radial-gradient(
+        760px circle at var(--mouse-x) var(--mouse-y),
+        var(--spotlight-inner),
+        transparent 40%
+      );
+    z-index: 3;
+  }
+
+  .writing-spotlight__card::after {
+    padding: 1px;
+    background:
+      radial-gradient(
+        560px circle at var(--mouse-x) var(--mouse-y),
+        var(--spotlight-outer),
+        transparent 40%
+      );
+    z-index: 4;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .writing-spotlight__grid:hover > .writing-spotlight__card::after,
+  .writing-spotlight__card:hover::before,
+  .writing-spotlight__card:hover::after,
+  .writing-spotlight__card:focus-within::before,
+  .writing-spotlight__card:focus-within::after {
+    opacity: 1;
+  }
+
+  .writing-spotlight__card-surface {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    min-height: 100%;
+    background: var(--card-content-bg);
+    box-shadow: inset 0 0 0 1px var(--card-base-bg);
+    transition: background-color 0.5s ease;
+  }
+
+  .writing-spotlight__link {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+    min-height: 300px;
+    padding: 24px 22px 28px;
+  }
+
+  .writing-spotlight__card--feature .writing-spotlight__link {
+    min-height: 320px;
+  }
+
+  .writing-spotlight .tag-list {
+    padding-bottom: 2px;
+  }
+
+  .writing-spotlight__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .writing-spotlight__body h3 {
+    margin: 0;
+    max-width: 14ch;
+    font-size: clamp(1.35rem, 2.1vw, 2rem);
+    line-height: 1.08;
+    letter-spacing: -0.05em;
+    text-transform: uppercase;
+  }
+
+  .writing-spotlight__body p {
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 720px) {
+    .writing-spotlight__link,
+    .writing-spotlight__card--feature .writing-spotlight__link {
+      min-height: 250px;
+      padding: 22px 20px 24px;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .writing-spotlight__grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .writing-spotlight__card--feature {
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .writing-spotlight__header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .writing-spotlight__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .writing-spotlight__card--feature {
+      grid-column: auto;
+    }
+  }
+</style>

@@ -1,0 +1,385 @@
+import React, { useRef, useEffect, useState } from 'react';
+import * as THREE from 'three';
+
+// 独立平滑插值衰减函数
+const damp = (current, target, lambda, dt) => {
+  return current + (target - current) * (1 - Math.exp(-lambda * dt));
+};
+
+export default function App() {
+  const mountRef = useRef(null);
+  
+  // 主题状态：默认黑夜模式
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  
+  // 将 Three.js 核心对象存入 Ref，以便在切换主题时复用和修改
+  const sceneRef = useRef(null);
+  const rendererRef = useRef(null);
+  const lightsRef = useRef({});
+
+  // 核心状态托管在 Ref 中以配合 Three.js 循环
+  const stateRef = useRef({
+    focusedId: null,
+    targetRot: 0,
+    globalRot: 0,
+    isDragging: false,
+    startX: 0,
+    lastRot: 0,
+    dragDist: 0,
+  });
+
+  // 主初始化 Hook：只执行一次
+  useEffect(() => {
+    if (!mountRef.current) return;
+    const mount = mountRef.current;
+
+    // --- 场景初始化 ---
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
+    scene.fog = new THREE.Fog('#030303', 18, 35);
+
+    const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 24);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    rendererRef.current = renderer;
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor('#030303');
+    mount.appendChild(renderer.domElement);
+
+    // --- 高级布光 ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(0, 5, 10);
+    scene.add(dirLight);
+
+    const leftLight = new THREE.PointLight(0x88bbff, 50, 50);
+    leftLight.position.set(-15, 0, 5);
+    scene.add(leftLight);
+    
+    const rightLight = new THREE.PointLight(0xffaa88, 50, 50);
+    rightLight.position.set(15, 0, 5);
+    scene.add(rightLight);
+
+    lightsRef.current = { ambientLight, dirLight };
+
+    // --- 辅助函数：创建圆角矩形 Shape ---
+    const createRoundedShape = (width, height, radius) => {
+      const shape = new THREE.Shape();
+      const x = -width / 2;
+      const y = -height / 2;
+      shape.moveTo(x, y + radius);
+      shape.lineTo(x, y + height - radius);
+      shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+      shape.lineTo(x + width - radius, y + height);
+      shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+      shape.lineTo(x + width, y + radius);
+      shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+      shape.lineTo(x + radius, y);
+      shape.quadraticCurveTo(x, y, x, y + radius);
+      return shape;
+    };
+
+    // --- 数据与玻璃卡片生成 ---
+    const N = 55;
+    const cards = [];
+    const groupNode = new THREE.Group();
+    scene.add(groupNode);
+
+    const aspectRatios = [1, 4/3, 3/4, 16/9, 9/16, 3/2, 2/3];
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('Anonymous');
+
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const y = -4.5 + t * 9;
+      
+      const bulge = Math.cos((y / 4.5) * (Math.PI / 2)); 
+      const radius = 6.5 + bulge * 3.5; 
+      const baseTheta = i * 2.39996; // 黄金排布角度
+      
+      const aspect = aspectRatios[i % aspectRatios.length];
+      const isLarge = Math.random() > 0.85;
+      const targetArea = isLarge ? 5.0 : 2.0;
+      
+      const h = Math.sqrt(targetArea / aspect);
+      const w = aspect * h;
+
+      const cardGroup = new THREE.Group();
+      cardGroup.userData = { id: i, y, radius, baseTheta };
+
+      const margin = 0.08; 
+      const glassDepth = 0.015; 
+      const cornerRadius = 0.15; 
+
+      // 2.1 高级物理玻璃外壳材质
+      const glassShape = createRoundedShape(w + margin, h + margin, cornerRadius);
+      const extrudeSettings = {
+        depth: glassDepth,
+        bevelEnabled: true,
+        bevelSegments: 4, 
+        steps: 1,
+        bevelSize: 0.015,
+        bevelThickness: 0.015,
+      };
+      const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+      glassGeo.center(); 
+
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.1,
+        roughness: 0.0,    
+        clearcoat: 1.0,    
+        clearcoatRoughness: 0.0,
+        transparent: true,
+        opacity: 0,        
+        depthWrite: false, // 【修复核心】关闭玻璃的深度写入，避免与内部图片冲突
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.05 
+      });
+      const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+
+      // 2.2 内部照片层材质
+      const picRadius = Math.max(0.02, cornerRadius - margin / 2);
+      const picShape = createRoundedShape(w, h, picRadius);
+      const picGeo = new THREE.ShapeGeometry(picShape);
+      const baseHue = (i * 137.5) % 360;
+      
+      const picMat = new THREE.MeshBasicMaterial({ 
+        color: new THREE.Color(`hsl(${baseHue}, 30%, 25%)`),
+        transparent: true,
+        opacity: 0,
+        depthWrite: true, // 【修复核心】开启图片的深度写入，稳固自身渲染层级
+        side: THREE.DoubleSide // 【修复核心】开启双面渲染，背面不再隐形
+      });
+      const picMesh = new THREE.Mesh(picGeo, picMat);
+      picMesh.position.z = 0; 
+
+      cardGroup.add(glassMesh, picMesh);
+      cardGroup.children.forEach(c => c.userData.parentGroup = cardGroup);
+      
+      cardGroup.position.set(0, y, -10);
+      cards.push(cardGroup);
+      groupNode.add(cardGroup);
+
+      // 3. 异步拉取真实网图 (使用原生 TextureLoader 防错)
+      const reqWidth = Math.round(800 * (w / Math.max(w, h)));
+      const reqHeight = Math.round(800 * (h / Math.max(w, h)));
+      
+      setTimeout(() => {
+        textureLoader.load(`https://picsum.photos/seed/${i + 200}/${reqWidth}/${reqHeight}`, (texture) => {
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          if (THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
+          picMat.map = texture;
+          picMat.color.setHex(0xffffff); // 恢复图片真实色彩
+          picMat.needsUpdate = true;
+        });
+      }, i * 150); 
+    }
+
+    // --- 极简交互系统 ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onPointerDown = (e) => {
+      const st = stateRef.current;
+      st.isDragging = true;
+      st.startX = e.clientX;
+      st.lastRot = st.targetRot;
+      st.dragDist = 0;
+    };
+
+    const onPointerMove = (e) => {
+      const st = stateRef.current;
+      if (st.isDragging) {
+        const dx = e.clientX - st.startX;
+        st.dragDist += Math.abs(dx);
+        st.targetRot = st.lastRot + dx * 0.003;
+      }
+      
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      const intersects = raycaster.intersectObjects(groupNode.children, true);
+      renderer.domElement.style.cursor = (intersects.length > 0 && st.dragDist < 5) ? 'pointer' : 'auto';
+    };
+
+    const onPointerUp = () => {
+      stateRef.current.isDragging = false;
+    };
+
+    const onClick = (e) => {
+      const st = stateRef.current;
+      if (st.dragDist > 5) return; 
+      
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      const intersects = raycaster.intersectObjects(groupNode.children, true);
+
+      if (intersects.length > 0) {
+        const targetId = intersects[0].object.userData.parentGroup.userData.id;
+        st.focusedId = st.focusedId === targetId ? null : targetId;
+      } else {
+        st.focusedId = null;
+      }
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('click', onClick);
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onResize);
+
+    // --- 核心动画循环 ---
+    const clock = new THREE.Clock();
+    let animationId;
+
+    const animate = () => {
+      animationId = requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1); 
+      const st = stateRef.current;
+
+      if (st.focusedId === null && !st.isDragging) {
+        st.targetRot -= 0.0012; // 待机漫游
+      }
+      st.globalRot += (st.targetRot - st.globalRot) * 0.08;
+
+      const anyFocused = st.focusedId !== null;
+
+      cards.forEach(group => {
+        const ud = group.userData;
+        const isFocused = ud.id === st.focusedId;
+
+        let tx, ty, tz, trY, tScale, targetOpacity;
+
+        if (isFocused) {
+          tx = 0; ty = 0; tz = 15;
+          trY = 0;
+          tScale = 2.0;
+          targetOpacity = 1;
+        } else {
+          const currentAngle = ud.baseTheta + st.globalRot;
+          tx = ud.radius * Math.cos(currentAngle) * 1.5;
+          ty = ud.y;
+          tz = ud.radius * Math.sin(currentAngle) * 0.7;
+          trY = Math.atan2(tx, tz);
+          tScale = 1.0;
+          targetOpacity = anyFocused ? 0.02 : 1; 
+        }
+
+        group.position.x = damp(group.position.x, tx, 5, dt);
+        group.position.y = damp(group.position.y, ty, 5, dt);
+        group.position.z = damp(group.position.z, tz, 5, dt);
+
+        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, trY, 0));
+        group.quaternion.slerp(targetQuat, damp(0, 1, 5, dt));
+        group.scale.setScalar(damp(group.scale.x, tScale, 5, dt));
+
+        group.children.forEach((mesh, index) => {
+          const maxOpacity = index === 0 ? 0.35 : 1.0; 
+          mesh.material.opacity = damp(mesh.material.opacity, targetOpacity * maxOpacity, 4, dt);
+        });
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('click', onClick);
+      window.removeEventListener('resize', onResize);
+      if (mount.contains(renderer.domElement)) {
+        mount.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+    };
+  }, []);
+
+  // 主题切换副作用：监控 isDarkMode 变化并更新 Three.js 环境色彩
+  useEffect(() => {
+    if (!sceneRef.current || !rendererRef.current) return;
+    
+    // 黑夜配色：极深黑 / 白天配色：冷感科技灰
+    const targetColor = isDarkMode ? '#030303' : '#e2e8f0';
+    
+    sceneRef.current.fog.color.set(targetColor);
+    rendererRef.current.setClearColor(targetColor);
+
+    // 白天增加主光源以提亮玻璃反射
+    if (lightsRef.current.ambientLight) {
+      lightsRef.current.ambientLight.intensity = isDarkMode ? 0.6 : 0.9;
+    }
+    if (lightsRef.current.dirLight) {
+      lightsRef.current.dirLight.intensity = isDarkMode ? 1.5 : 2.5;
+    }
+  }, [isDarkMode]);
+
+  // UI 动态样式设定
+  const textPrimary = isDarkMode ? 'text-white' : 'text-slate-900';
+  const textSecondary = isDarkMode ? 'text-white/40' : 'text-slate-500';
+  const themeBgClass = isDarkMode ? 'bg-[#030303]' : 'bg-[#e2e8f0]';
+  const toggleBtnClass = isDarkMode 
+    ? 'border-white/20 text-white hover:bg-white/10' 
+    : 'border-slate-400/30 text-slate-700 hover:bg-slate-300/50';
+
+  return (
+    <div className={`w-full h-screen overflow-hidden relative font-sans transition-colors duration-1000 ${themeBgClass} selection:bg-blue-500/30`}>
+      {/* 3D 渲染容器 */}
+      <div ref={mountRef} className="absolute inset-0" />
+
+      {/* 静态品牌UI叠加层 */}
+      <div className="absolute top-0 left-0 w-full p-8 z-10 pointer-events-none flex justify-between items-start">
+        <div>
+          <h1 className={`${textPrimary} text-2xl font-light tracking-[0.2em] transition-colors duration-1000`}>
+            NEXUS<span className="font-bold">GALLERY</span>
+          </h1>
+          <p className={`${textSecondary} text-xs tracking-widest mt-1 transition-colors duration-1000`}>
+            VIRTUAL EXHIBITION SYSTEM
+          </p>
+        </div>
+        
+        {/* 右上角操作区：包含状态和主题切换按钮 */}
+        <div className="flex flex-col items-end pointer-events-auto">
+          <button 
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={`mb-4 px-4 py-1.5 border backdrop-blur-sm rounded-full text-xs tracking-widest transition-all duration-500 ${toggleBtnClass}`}
+          >
+            {isDarkMode ? '☼ DAY MODE' : '☾ NIGHT MODE'}
+          </button>
+
+          <div className="text-right pointer-events-none">
+            <p className={`${textSecondary} text-[10px] tracking-[0.3em] transition-colors duration-1000`}>STATUS</p>
+            <div className="flex items-center justify-end gap-2 mt-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <p className={`${textPrimary} text-xs tracking-widest transition-colors duration-1000`}>ONLINE</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 底部交互提示 */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <p className={`${textSecondary} text-[10px] tracking-[0.4em] uppercase transition-colors duration-1000`}>
+          Drag to Rotate / Click to Focus
+        </p>
+      </div>
+    </div>
+  );
+}

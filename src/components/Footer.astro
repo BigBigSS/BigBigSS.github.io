@@ -1,0 +1,135 @@
+---
+import { site } from "../data/site";
+
+const buildDate = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
+---
+
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__meta">
+      <p class="footer__copy">© 2026 {site.name} · {site.slogan}</p>
+      <p class="footer__subline">Built with Astro · Source on GitHub · Last updated {buildDate}</p>
+    </div>
+
+    <div class="footer__links footer__links--secondary">
+      <a class="footer-link" href="/#about">关于</a>
+      <a class="footer-link" href="/now">最近</a>
+      <a class="footer-link" href="/posts">实验室</a>
+    </div>
+
+    <div class="footer__links">
+      <a class="footer-link" href={site.github} target="_blank" rel="noreferrer">GitHub</a>
+      <button class="footer-link footer-link--button" type="button" data-email-copy={site.email}>
+        <span>Email</span>
+      </button>
+      <a class="footer-link" href="/rss.xml">RSS</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const emailCopyButtons = document.querySelectorAll<HTMLButtonElement>("[data-email-copy]");
+
+  emailCopyButtons.forEach((emailCopyButton) => {
+    const label = emailCopyButton.querySelector("span") || emailCopyButton;
+    const originalLabel = label.textContent || "CONTACT";
+
+    emailCopyButton.addEventListener("click", async () => {
+      const email = emailCopyButton.dataset.emailCopy || "";
+      if (!email) return;
+
+      try {
+        await navigator.clipboard.writeText(email);
+        label.textContent = "COPIED";
+        window.setTimeout(() => {
+          label.textContent = originalLabel;
+        }, 1400);
+      } catch (_) {
+        label.textContent = email;
+      }
+    });
+  });
+</script>
+
+<style>
+  .footer {
+    position: relative;
+    padding: 64px 24px 56px;
+    background: linear-gradient(180deg, transparent 0%, var(--bg-deep) 100%);
+  }
+
+  .footer__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    width: min(1280px, calc(100vw - 48px));
+    margin-inline: auto;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-tertiary);
+    font-size: 0.92rem;
+  }
+
+  .footer__meta {
+    display: grid;
+    gap: 6px;
+  }
+
+  .footer__copy {
+    margin: 0;
+    color: var(--text-secondary);
+  }
+
+  .footer__subline {
+    margin: 0;
+  }
+
+  .footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer__links--secondary {
+    margin-left: auto;
+  }
+
+  .footer-link {
+    color: var(--text-secondary);
+    transition: color 160ms ease;
+  }
+
+  .footer-link--button {
+    appearance: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .footer-link:hover {
+    color: var(--text-primary);
+  }
+
+  @media (max-width: 700px) {
+    .footer {
+      padding-inline: 16px;
+    }
+
+    .footer__inner {
+      width: min(1280px, calc(100vw - 32px));
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .footer__links--secondary {
+      margin-left: 0;
+    }
+  }
+</style>

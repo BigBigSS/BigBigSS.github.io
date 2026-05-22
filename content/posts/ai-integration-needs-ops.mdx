@@ -1,0 +1,43 @@
+---
+title: AI 接入不是“调个接口”，它需要运维视角
+description: 模型上线后的风险，更多来自配额、延迟、重试和观察面，而不是那一行调用代码。
+date: 2026-03-18
+tags:
+  - ai
+  - ops
+  - reliability
+cover: https://picsum.photos/seed/ai-ops-cover/1200/720
+---
+
+第一次把大模型接进业务时，大家常常把注意力全部放在 prompt 和效果上。可一旦进了真实链路，问题很快会变成另一个集合：
+
+- 配额会不会突然打满
+- 限流时要不要降级
+- 结果缓存怎么做
+- 调用失败后如何回收状态
+
+![抽象 AI 工作流占位图](https://picsum.photos/seed/ai-ops-1/1200/800)
+
+## 为什么说这是运维问题
+
+因为它们关心的是系统在压力下如何表现，而不是单次请求看起来多聪明。
+
+模型能力再强，如果没有配套的超时、重试、监控和预算约束，接入方式就还是脆的。
+
+## 把实验接口变成生产能力
+
+我现在更习惯把 AI 能力包装成一层稳定服务：
+
+```ts
+type CompletionRequest = {
+  useCase: "draft" | "classify" | "assist";
+  timeoutMs: number;
+  retryBudget: number;
+};
+```
+
+这样做的价值不在抽象本身，而在于把风险入口集中起来。
+
+![冷暖对比的抽象屏幕占位图](https://picsum.photos/seed/ai-ops-2/1200/800)
+
+如果没有运维视角，AI 接入很容易停留在 demo 阶段；有了运维视角，它才更接近一项能长期托付给业务的能力。

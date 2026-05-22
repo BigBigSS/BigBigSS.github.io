@@ -1,0 +1,610 @@
+---
+import { site } from "../data/site";
+---
+
+<section class="hero" data-hero-root>
+  <div class="noise-overlay" aria-hidden="true"></div>
+  <div class="ambient-glow" aria-hidden="true"></div>
+
+  <div class="scene-container dim-scene" aria-hidden="true">
+    <div class="ribbon ribbon-1"></div>
+    <div class="ribbon ribbon-2"></div>
+    <div class="ribbon ribbon-3"></div>
+    <div class="ribbon ribbon-4"></div>
+  </div>
+
+  <!-- 合并版动态掩码光效层 -->
+  <div class="scene-container active-scene" data-active-scene aria-hidden="true">
+    <div class="ribbon ribbon-1"></div>
+    <div class="ribbon ribbon-2"></div>
+    <div class="ribbon ribbon-3"></div>
+    <div class="ribbon ribbon-4"></div>
+  </div>
+
+  <div class="hero__shell">
+    <div class="hero__content">
+      <div class="hero__tag ui-glass ui-text-main">DIGITAL ATELIER // 01</div>
+
+      <h1 class="hero__title ui-text-main">
+        Between Code<br />
+        and <span class="ui-gradient-text">Passing Light</span>
+      </h1>
+
+      <p class="hero__lead ui-text-muted">
+        生活中，保存一些可被再次打开的瞬间。
+      </p>
+
+      <div class="hero__actions">
+        <a
+          href={site.github}
+          target="_blank"
+          rel="noreferrer"
+          class="hero__chip ui-glass ui-text-main"
+        >
+          <span>GITHUB</span>
+        </a>
+
+        <div class="hero__chip hero__chip--pop ui-glass ui-text-main">
+          <span>WECHAT</span>
+          <div class="hero__popover ui-glass">暂不展示</div>
+        </div>
+
+        <button
+          type="button"
+          class="hero__chip ui-glass ui-text-main"
+          data-email-copy={site.email}
+        >
+          <span>CONTACT</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const heroRoot = document.querySelector<HTMLElement>("[data-hero-root]");
+  const activeScene = document.querySelector<HTMLElement>("[data-active-scene]");
+
+  if (heroRoot && activeScene) {
+    const hero = heroRoot;
+    const scene = activeScene;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let targetX = window.innerWidth / 2;
+    let targetY = window.innerHeight / 2;
+    let currentX = targetX;
+    let currentY = targetY;
+    let targetOpacity = 0;
+    let currentOpacity = 0;
+
+    let waveProgress = -20;
+    let waveOpacity = 0;
+    let isWaving = false;
+    let sweepTimer = 0;
+    let firstSweepScheduled = false;
+
+    let animationId = 0;
+    let isRunning = false;
+    let inViewport = false;
+
+    const triggerSweep = () => {
+      if (isWaving || reducedMotion) return;
+      isWaving = true;
+      waveProgress = -20;
+      waveOpacity = 0;
+      startAnimation();
+    };
+
+    const scheduleFirstSweep = () => {
+      if (firstSweepScheduled || reducedMotion) return;
+      firstSweepScheduled = true;
+      window.setTimeout(triggerSweep, 1500);
+    };
+
+    const startSweepTimer = () => {
+      if (sweepTimer || reducedMotion) return;
+      sweepTimer = window.setInterval(triggerSweep, 10000);
+    };
+
+    const stopSweepTimer = () => {
+      if (sweepTimer) {
+        window.clearInterval(sweepTimer);
+        sweepTimer = 0;
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      targetOpacity = 1;
+      startAnimation();
+    };
+
+    const onPointerLeave = () => {
+      targetOpacity = 0;
+      startAnimation();
+    };
+
+    hero.addEventListener("pointermove", onPointerMove);
+    hero.addEventListener("pointerleave", onPointerLeave);
+
+    function animate() {
+      if (!isRunning) return;
+
+      currentX += (targetX - currentX) * 0.08;
+      currentY += (targetY - currentY) * 0.08;
+      currentOpacity += (targetOpacity - currentOpacity) * 0.06;
+
+      const rect = scene.getBoundingClientRect();
+      const relativeX = currentX - rect.left;
+      const relativeY = currentY - rect.top;
+
+      hero.style.setProperty("--mouse-x", `${relativeX}px`);
+      hero.style.setProperty("--mouse-y", `${relativeY}px`);
+      hero.style.setProperty("--bright-opacity", currentOpacity.toString());
+      hero.style.setProperty("--bright-opacity-60", (currentOpacity * 0.6).toString());
+      hero.style.setProperty("--bright-opacity-10", (currentOpacity * 0.1).toString());
+
+      if (isWaving) {
+        waveProgress += 0.6;
+        if (waveProgress <= 90) {
+          waveOpacity = Math.min(0.85, waveOpacity + 0.016);
+        } else if (waveProgress > 90 && waveOpacity > 0) {
+          waveOpacity -= 0.05;
+        }
+        hero.style.setProperty("--wave-progress", `${waveProgress}%`);
+        hero.style.setProperty("--wave-opacity", waveOpacity.toString());
+        if (waveProgress > 130) {
+          isWaving = false;
+          waveOpacity = 0;
+          hero.style.setProperty("--wave-opacity", "0");
+        }
+      }
+
+      const idle =
+        !isWaving &&
+        Math.abs(targetX - currentX) < 0.1 &&
+        Math.abs(targetY - currentY) < 0.1 &&
+        Math.abs(targetOpacity - currentOpacity) < 0.001;
+
+      if (idle) {
+        stopAnimation();
+        return;
+      }
+
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function startAnimation() {
+      if (isRunning || !inViewport || document.visibilityState === "hidden") return;
+      isRunning = true;
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function stopAnimation() {
+      isRunning = false;
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = 0;
+      }
+    }
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries.some((entry) => entry.isIntersecting);
+          inViewport = visible;
+          if (visible) {
+            startSweepTimer();
+            scheduleFirstSweep();
+            startAnimation();
+          } else {
+            stopSweepTimer();
+            stopAnimation();
+          }
+        },
+        { rootMargin: "0px", threshold: 0 },
+      );
+      observer.observe(hero);
+    } else {
+      inViewport = true;
+      startSweepTimer();
+      scheduleFirstSweep();
+      startAnimation();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        stopAnimation();
+        stopSweepTimer();
+      } else if (inViewport) {
+        startSweepTimer();
+        startAnimation();
+      }
+    });
+  }
+
+</script>
+
+<style is:global>
+  .hero {
+    position: relative;
+    width: 100%;
+    height: clamp(760px, 108dvh, 980px);
+    min-height: 760px;
+    overflow: hidden;
+    isolation: isolate;
+    color: var(--ui-text-main);
+  }
+
+  .hero .noise-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 50;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: var(--hero-noise-opacity);
+  }
+
+  .hero[data-hero-wave-active] .ui-glass:hover,
+  .hero[data-hero-wave-active] .ui-glass:focus-visible {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .hero .ambient-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--ambient-glow);
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    height: clamp(96px, 15vh, 180px);
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--bg) 24%, transparent) 62%,
+      var(--bg) 100%
+    );
+  }
+
+  .hero .scene-container {
+    position: absolute;
+    top: -12vh;
+    right: -13vw;
+    width: 82vw;
+    height: 190vh;
+    perspective: 1200px;
+    transform-style: preserve-3d;
+    pointer-events: none;
+    contain: layout paint style;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 9%,
+      #000 86%,
+      rgba(0, 0, 0, 0.74) 94%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 9%,
+      #000 86%,
+      rgba(0, 0, 0, 0.74) 94%,
+      transparent 100%
+    );
+  }
+
+  .hero .dim-scene {
+    z-index: 1;
+    opacity: var(--dim-opacity);
+    transition: opacity 0.45s ease;
+  }
+
+  .hero .active-scene {
+    z-index: 2;
+    mask-image: 
+      radial-gradient(
+        700px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+        rgba(0, 0, 0, var(--bright-opacity, 0)) 0%,
+        rgba(0, 0, 0, var(--bright-opacity-60, 0)) 30%,
+        rgba(0, 0, 0, var(--bright-opacity-10, 0)) 65%,
+        rgba(0, 0, 0, 0) 100%
+      ),
+      linear-gradient(
+        105deg,
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) - 20%),
+        rgba(0, 0, 0, var(--wave-opacity, 0)) var(--wave-progress, -20%),
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) + 20%)
+      );
+    -webkit-mask-image: 
+      radial-gradient(
+        700px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+        rgba(0, 0, 0, var(--bright-opacity, 0)) 0%,
+        rgba(0, 0, 0, var(--bright-opacity-60, 0)) 30%,
+        rgba(0, 0, 0, var(--bright-opacity-10, 0)) 65%,
+        rgba(0, 0, 0, 0) 100%
+      ),
+      linear-gradient(
+        105deg,
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) - 20%),
+        rgba(0, 0, 0, var(--wave-opacity, 0)) var(--wave-progress, -20%),
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) + 20%)
+      );
+  }
+
+  .hero .ribbon {
+    position: absolute;
+    height: 140%;
+    top: -20%;
+    overflow: hidden;
+    border-radius: 50% 50% 50% 50% / 40% 60% 40% 60%;
+    transform-style: preserve-3d;
+    isolation: isolate;
+    box-shadow:
+      inset -12px 0 36px rgba(0, 0, 0, 0.18),
+      -16px 0 48px rgba(0, 0, 0, 0.12);
+    animation: hero-float 12s ease-in-out infinite alternate;
+  }
+
+  .hero .ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    backface-visibility: hidden;
+    background: var(--ribbon-gradient);
+  }
+
+  .hero:not([data-hero-active]) .ribbon {
+    animation-play-state: paused;
+  }
+
+  .hero[data-hero-active]:not([data-hero-switching]) .mouse-scene,
+  .hero[data-hero-active]:not([data-hero-switching]) .wave-scene {
+    will-change: opacity;
+  }
+
+  .hero .ribbon-1 {
+    width: 35vw;
+    left: 0;
+    z-index: 10;
+    --rz: 5deg;
+    --ry: -15deg;
+    --tz: -100px;
+    --ribbon-gradient: linear-gradient(105deg, #000 0%, #090314 15%, #230d52 35%, #6432c9 47%, #a78aed 49.5%, #ffffff 50.5%, #a78aed 51.5%, #411a91 60%, #0f0529 80%, #000 100%);
+    animation-delay: 0s;
+  }
+
+  .hero .ribbon-2 {
+    width: 40vw;
+    left: 18vw;
+    z-index: 20;
+    --rz: -2deg;
+    --ry: -25deg;
+    --tz: 0px;
+    --ribbon-gradient: linear-gradient(110deg, #000 0%, #02171c 10%, #0a4c5e 30%, #209da8 46%, #8bf2ed 49.5%, #ffffff 50.5%, #8bf2ed 51.5%, #18786e 60%, #052b21 80%, #000 100%);
+    animation-delay: -3s;
+  }
+
+  .hero .ribbon-3 {
+    width: 45vw;
+    left: 40vw;
+    z-index: 30;
+    --rz: -10deg;
+    --ry: -35deg;
+    --tz: 100px;
+    --ribbon-gradient: linear-gradient(115deg, #000 0%, #1f0300 10%, #610f00 25%, #b82c00 42%, #f28d13 48.5%, #ffebb3 50%, #ffffff 50.5%, #ffebb3 51%, #d9660b 58%, #5e1400 80%, #000 100%);
+    animation-delay: -6s;
+  }
+
+  .hero .ribbon-4 {
+    width: 38vw;
+    left: 65vw;
+    z-index: 40;
+    --rz: -18deg;
+    --ry: -45deg;
+    --tz: 200px;
+    --ribbon-gradient: linear-gradient(110deg, #000 0%, #1f0012 10%, #5e0431 30%, #ab1862 46%, #f07ab9 49.5%, #ffffff 50.5%, #f07ab9 51.5%, #8f0e4d 60%, #240114 80%, #000 100%);
+    animation-delay: -9s;
+  }
+
+  html.theme-preboot-light .hero .ribbon-1,
+  body.light-mode .hero .ribbon-1 {
+    --ribbon-gradient: linear-gradient(105deg, var(--bg) 0%, #f3e8ff 15%, #d8b4fe 35%, #9333ea 47%, #ffffff 50.5%, #9333ea 52%, #d8b4fe 65%, #f3e8ff 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-2,
+  body.light-mode .hero .ribbon-2 {
+    --ribbon-gradient: linear-gradient(110deg, var(--bg) 0%, #ccfbf1 15%, #5eead4 35%, #0d9488 47%, #ffffff 50.5%, #0d9488 52%, #5eead4 65%, #ccfbf1 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-3,
+  body.light-mode .hero .ribbon-3 {
+    --ribbon-gradient: linear-gradient(115deg, var(--bg) 0%, #ffedd5 15%, #fdba74 35%, #ea580c 47%, #ffffff 50.5%, #ea580c 52%, #fdba74 65%, #ffedd5 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-4,
+  body.light-mode .hero .ribbon-4 {
+    --ribbon-gradient: linear-gradient(110deg, var(--bg) 0%, #fce7f3 15%, #f9a8d4 35%, #db2777 47%, #ffffff 50.5%, #db2777 52%, #f9a8d4 65%, #fce7f3 85%, var(--bg) 100%);
+  }
+
+  @keyframes hero-float {
+    0% {
+      transform: translateY(0) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg));
+    }
+    100% {
+      transform: translateY(-3vh) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero .ribbon {
+      animation: none;
+    }
+  }
+
+  .hero .hero__shell {
+    position: relative;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    padding: 0 32px;
+    max-width: 1400px;
+    margin-inline: auto;
+    pointer-events: none;
+  }
+
+  .hero .hero__content {
+    max-width: 640px;
+    pointer-events: auto;
+  }
+
+  .hero .hero__tag {
+    display: inline-block;
+    padding: 6px 14px;
+    margin-bottom: 32px;
+    border-radius: 2px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.70rem;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .hero .hero__title {
+    margin: 0 0 24px;
+    font-family: "Inter Variable", "Inter", "DM Sans", system-ui, sans-serif;
+    font-size: clamp(2.8rem, 6.4vw, 4.6rem);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+  }
+
+  .hero .hero__lead {
+    margin: 0 0 48px;
+    max-width: 32rem;
+    font-size: clamp(1rem, 1.3vw, 1.2rem);
+    font-weight: 300;
+    line-height: 1.7;
+  }
+
+  .hero .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .hero .hero__chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 28px;
+    border-radius: 2px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    overflow: hidden;
+    appearance: none;
+    background: transparent;
+    color: var(--ui-text-main);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: color 0.4s cubic-bezier(0.19, 1, 0.22, 1), border-color 0.4s ease;
+    z-index: 1;
+  }
+
+  .hero .hero__chip::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--ui-text-main);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: -1;
+  }
+
+  .hero .hero__chip:hover,
+  .hero .hero__chip:focus-visible {
+    color: var(--bg);
+    border-color: transparent;
+  }
+
+  .hero .hero__chip:hover::before,
+  .hero .hero__chip:focus-visible::before {
+    transform: scaleX(1);
+  }
+
+  .hero .hero__chip--pop {
+    position: relative;
+  }
+
+  .hero .hero__chip-qq {
+    font-weight: 800;
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .hero .hero__popover {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .hero .hero__chip--pop:hover .hero__popover {
+    opacity: 1;
+  }
+
+  @media (max-width: 640px) {
+    .hero {
+      height: auto;
+      min-height: 720px;
+    }
+
+    .hero .hero__shell {
+      padding: 0 20px;
+    }
+    .hero .hero__content {
+      margin-top: 32px;
+    }
+    .hero .hero__title {
+      font-size: clamp(2.2rem, 10vw, 3.2rem);
+    }
+    .hero .hero__lead {
+      margin-bottom: 32px;
+    }
+  }
+</style>

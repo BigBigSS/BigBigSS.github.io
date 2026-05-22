@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Hero - Theme Toggle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        :root {
+            /* 鼠标坐标变量 */
+            --mouse-x: 50vw;
+            --mouse-y: 50vh;
+            --bright-opacity: 0;
+
+            /* 自动扫光波变量 */
+            --wave-progress: -20%;
+            --wave-opacity: 0;
+
+            /* 深色模式默认变量 (背景) */
+            --bg-color: #030303;
+            --text-color: #ffffff;
+            --noise-blend: overlay;
+            --noise-opacity: 0.04;
+            --ambient-glow: radial-gradient(circle at 70% 50%, rgba(30,15,50,0.1) 0%, rgba(0,0,0,0) 60%);
+            --dim-opacity: 0.12; 
+            --dim-filter: grayscale(0.8) brightness(0.4) blur(1px);
+            --ribbon-shadow: inset -20px 0 60px rgba(0,0,0,0.8), -40px 0 100px rgba(0,0,0,1);
+
+            /* 深色模式 UI 变量 */
+            --ui-text-main: #ffffff;
+            --ui-text-muted: rgba(255, 255, 255, 0.6);
+            --ui-border: rgba(255, 255, 255, 0.15);
+            --ui-glass-bg: rgba(255, 255, 255, 0.05);
+            --ui-glass-hover: rgba(255, 255, 255, 0.12);
+            --ui-gradient-from: #ffffff;
+            --ui-gradient-to: rgba(255, 255, 255, 0.3);
+        }
+
+        body.light-mode {
+            /* 浅色模式变量覆盖 (背景) */
+            --bg-color: #f6f7f9; 
+            --text-color: #1a1a1a;
+            --noise-blend: multiply;
+            --noise-opacity: 0.02;
+            --ambient-glow: radial-gradient(circle at 70% 50%, rgba(240,230,220,0.4) 0%, rgba(255,255,255,0) 60%);
+            --dim-opacity: 0.03; 
+            --dim-filter: grayscale(0.2) brightness(1.05) contrast(0.9) blur(1px);
+            --ribbon-shadow: inset -20px 0 60px rgba(0,0,0,0.015), -40px 0 100px rgba(0,0,0,0.03);
+
+            /* 浅色模式 UI 变量 */
+            --ui-text-main: #1a1a1a;
+            --ui-text-muted: rgba(0, 0, 0, 0.6);
+            --ui-border: rgba(0, 0, 0, 0.15);
+            --ui-glass-bg: rgba(0, 0, 0, 0.04);
+            --ui-glass-hover: rgba(0, 0, 0, 0.08);
+            --ui-gradient-from: #1a1a1a;
+            --ui-gradient-to: rgba(0, 0, 0, 0.4);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-x: hidden;
+            transition: background-color 0.7s ease, color 0.7s ease;
+        }
+
+        /* 统一 UI 类，自动适配深浅色 */
+        .ui-text-main { color: var(--ui-text-main); transition: color 0.7s ease; }
+        .ui-text-muted { color: var(--ui-text-muted); transition: color 0.7s ease; }
+        .ui-glass { 
+            background: var(--ui-glass-bg); 
+            border: 1px solid var(--ui-border); 
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px);
+            transition: all 0.3s ease; 
+        }
+        .ui-glass:hover {
+            background: var(--ui-glass-hover);
+            border-color: var(--ui-text-muted);
+        }
+        .ui-gradient-text {
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            background-image: linear-gradient(to right, var(--ui-gradient-from), var(--ui-gradient-to));
+            transition: background-image 0.7s ease;
+        }
+
+        /* 全局微小噪点 */
+        .noise-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 50;
+            opacity: var(--noise-opacity);
+            mix-blend-mode: var(--noise-blend);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            transition: opacity 0.7s ease, mix-blend-mode 0.7s ease;
+        }
+
+        /* 环境光晕 */
+        .ambient-glow {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--ambient-glow);
+            pointer-events: none; z-index: 0;
+            transition: background 0.7s ease;
+        }
+
+        /* 3D 背景容器 */
+        .scene-container {
+            position: absolute;
+            top: -10vh; right: -15vw; width: 80vw; height: 120vh;
+            perspective: 1200px; transform-style: preserve-3d;
+            pointer-events: none;
+        }
+
+        .dim-scene {
+            z-index: 1; opacity: var(--dim-opacity); filter: var(--dim-filter);
+            transition: opacity 0.7s ease, filter 0.7s ease;
+        }
+
+        .mouse-scene {
+            z-index: 2; opacity: var(--bright-opacity);
+            mask-image: radial-gradient(700px circle at var(--mouse-x) var(--mouse-y), rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
+            -webkit-mask-image: radial-gradient(700px circle at var(--mouse-x) var(--mouse-y), rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
+        }
+
+        .wave-scene {
+            z-index: 3; opacity: var(--wave-opacity);
+            /* 倾斜的线性渐变，用于模拟从左侧扫射过来的光束 */
+            mask-image: linear-gradient(105deg, rgba(0,0,0,0) calc(var(--wave-progress) - 20%), rgba(0,0,0,1) var(--wave-progress), rgba(0,0,0,0) calc(var(--wave-progress) + 20%));
+            -webkit-mask-image: linear-gradient(105deg, rgba(0,0,0,0) calc(var(--wave-progress) - 20%), rgba(0,0,0,1) var(--wave-progress), rgba(0,0,0,0) calc(var(--wave-progress) + 20%));
+        }
+
+        .ribbon {
+            position: absolute; height: 140%; top: -20%;
+            border-radius: 50% 50% 50% 50% / 40% 60% 40% 60%;
+            transform-style: preserve-3d; box-shadow: var(--ribbon-shadow);
+            animation: float 12s ease-in-out infinite alternate;
+            transition: box-shadow 0.7s ease;
+        }
+
+        /* 深色模式光带渐变 */
+        .ribbon-1 { width: 35vw; left: 0; z-index: 10; background: linear-gradient(105deg, #000 0%, #090314 15%, #230d52 35%, #6432c9 47%, #a78aed 49.5%, #ffffff 50.5%, #a78aed 51.5%, #411a91 60%, #0f0529 80%, #000 100%); }
+        .ribbon-2 { width: 40vw; left: 18vw; z-index: 20; background: linear-gradient(110deg, #000 0%, #02171c 10%, #0a4c5e 30%, #209da8 46%, #8bf2ed 49.5%, #ffffff 50.5%, #8bf2ed 51.5%, #18786e 60%, #052b21 80%, #000 100%); }
+        .ribbon-3 { width: 45vw; left: 40vw; z-index: 30; background: linear-gradient(115deg, #000 0%, #1f0300 10%, #610f00 25%, #b82c00 42%, #f28d13 48.5%, #ffebb3 50%, #ffffff 50.5%, #ffebb3 51%, #d9660b 58%, #5e1400 80%, #000 100%); }
+        .ribbon-4 { width: 38vw; left: 65vw; z-index: 40; background: linear-gradient(110deg, #000 0%, #1f0012 10%, #5e0431 30%, #ab1862 46%, #f07ab9 49.5%, #ffffff 50.5%, #f07ab9 51.5%, #8f0e4d 60%, #240114 80%, #000 100%); }
+
+        /* 浅色模式光带渐变 (提升了彩色核心区域的饱和度和对比度) */
+        body.light-mode .ribbon-1 { background: linear-gradient(105deg, var(--bg-color) 0%, #f3e8ff 15%, #d8b4fe 35%, #9333ea 47%, #ffffff 50.5%, #9333ea 52%, #d8b4fe 65%, #f3e8ff 85%, var(--bg-color) 100%); }
+        body.light-mode .ribbon-2 { background: linear-gradient(110deg, var(--bg-color) 0%, #ccfbf1 15%, #5eead4 35%, #0d9488 47%, #ffffff 50.5%, #0d9488 52%, #5eead4 65%, #ccfbf1 85%, var(--bg-color) 100%); }
+        body.light-mode .ribbon-3 { background: linear-gradient(115deg, var(--bg-color) 0%, #ffedd5 15%, #fdba74 35%, #ea580c 47%, #ffffff 50.5%, #ea580c 52%, #fdba74 65%, #ffedd5 85%, var(--bg-color) 100%); }
+        body.light-mode .ribbon-4 { background: linear-gradient(110deg, var(--bg-color) 0%, #fce7f3 15%, #f9a8d4 35%, #db2777 47%, #ffffff 50.5%, #db2777 52%, #f9a8d4 65%, #fce7f3 85%, var(--bg-color) 100%); }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg)); }
+            100% { transform: translateY(-3vh) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg)); }
+        }
+
+        .ribbon-1 { --rz: 5deg; --ry: -15deg; --tz: -100px; animation-delay: 0s; }
+        .ribbon-2 { --rz: -2deg; --ry: -25deg; --tz: 0px; animation-delay: -3s;}
+        .ribbon-3 { --rz: -10deg; --ry: -35deg; --tz: 100px; animation-delay: -6s;}
+        .ribbon-4 { --rz: -18deg; --ry: -45deg; --tz: 200px; animation-delay: -9s;}
+
+        /* Theme Toggle UI */
+        .theme-toggle {
+            position: fixed; top: 1.5rem; right: 1.5rem; width: 3rem; height: 3rem;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100;
+            transition: all 0.3s ease;
+        }
+        .theme-toggle:hover { transform: scale(1.05); }
+        .icon-sun, .icon-moon {
+            position: absolute; transition: opacity 0.5s ease, transform 0.5s ease;
+            width: 20px; height: 20px;
+        }
+        .icon-sun { opacity: 0; transform: rotate(-90deg) scale(0.5); fill: var(--ui-text-main); }
+        .icon-moon { opacity: 1; transform: rotate(0) scale(1); fill: var(--ui-text-main); }
+        body.light-mode .icon-sun { opacity: 1; transform: rotate(0) scale(1); }
+        body.light-mode .icon-moon { opacity: 0; transform: rotate(90deg) scale(0.5); }
+
+    </style>
+</head>
+<body id="body-container">
+
+    <!-- 顶层遮罩与光晕 -->
+    <div class="noise-overlay"></div>
+    <div class="ambient-glow"></div>
+
+    <!-- 主题切换按钮 -->
+    <button class="theme-toggle ui-glass" id="theme-btn" aria-label="Toggle Theme">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" fill="none"></circle>
+            <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2"></line>
+            <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2"></line>
+            <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2"></line>
+            <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2"></line>
+        </svg>
+    </button>
+
+    <!-- 背景场景 -->
+    <div class="scene-container dim-scene">
+        <div class="ribbon ribbon-1"></div><div class="ribbon ribbon-2"></div>
+        <div class="ribbon ribbon-3"></div><div class="ribbon ribbon-4"></div>
+    </div>
+    
+    <!-- 鼠标高光揭示态 -->
+    <div class="scene-container mouse-scene" id="mouse-scene">
+        <div class="ribbon ribbon-1"></div><div class="ribbon ribbon-2"></div>
+        <div class="ribbon ribbon-3"></div><div class="ribbon ribbon-4"></div>
+    </div>
+
+    <!-- 自动扫光效果层 -->
+    <div class="scene-container wave-scene" id="wave-scene">
+        <div class="ribbon ribbon-1"></div><div class="ribbon ribbon-2"></div>
+        <div class="ribbon ribbon-3"></div><div class="ribbon ribbon-4"></div>
+    </div>
+
+    <!-- 个人介绍 UI 层 (z-50) -->
+    <div class="relative z-50 flex flex-col justify-center h-full px-8 md:px-16 lg:px-24 max-w-7xl mx-auto pointer-events-none">
+        
+        <!-- 左侧内容容器 (恢复鼠标事件以允许点击按钮) -->
+        <div class="max-w-2xl pointer-events-auto">
+            
+            <!-- 标签 -->
+            <div class="inline-block px-4 py-1.5 mb-8 text-xs font-semibold tracking-widest uppercase rounded-full ui-glass ui-text-main">
+                Personal Portfolio
+            </div>
+
+            <!-- 主标题 -->
+            <h1 class="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 ui-text-main">
+                Hi，我是<br/>
+                <span class="ui-gradient-text">一个创造者</span> 👋
+            </h1>
+
+            <!-- 个人简介文本 -->
+            <p class="text-lg md:text-xl mb-12 font-light leading-relaxed ui-text-muted max-w-lg">
+                欢迎来到我的个人网站。我热爱探索前沿技术，致力于构建优雅且高效的数字体验。这里是我记录灵感、沉淀技术与分享生活的地方。
+            </p>
+
+            <!-- 联系方式按键组 -->
+            <div class="flex flex-wrap gap-4">
+                
+                <!-- GitHub -->
+                <a href="https://github.com" target="_blank" class="flex items-center gap-2.5 px-6 py-3 rounded-full ui-glass ui-text-main hover:-translate-y-1 transition-transform cursor-pointer">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span class="text-sm font-semibold tracking-wide">GitHub</span>
+                </a>
+
+                <!-- 微信 (带悬浮提示) -->
+                <div class="group relative flex items-center gap-2.5 px-6 py-3 rounded-full ui-glass ui-text-main hover:-translate-y-1 transition-transform cursor-pointer">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M8.5,13.5A1.5,1.5 0 1,0 8.5,10.5A1.5,1.5 0 1,0 8.5,13.5M15.5,13.5A1.5,1.5 0 1,0 15.5,10.5A1.5,1.5 0 1,0 15.5,13.5M12,2C6.48,2 2,6.03 2,11C2,13.83 3.5,16.36 5.86,17.94C5.55,19.26 4.63,20.67 4.54,20.81C4.47,20.92 4.54,21.05 4.67,21.05C4.7,21.05 4.74,21.04 4.78,21.02C5.9,20.46 7.22,19.95 8.12,19.64C9.33,20.06 10.64,20.28 12,20.28C17.52,20.28 22,16.25 22,11C22,6.03 17.52,2 12,2Z" />
+                    </svg>
+                    <span class="text-sm font-semibold tracking-wide">微信</span>
+                    <!-- 悬浮微信号 -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block ui-glass px-4 py-2 rounded-lg text-xs font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        ID: your_wechat_id
+                    </div>
+                </div>
+
+                <!-- QQ (带悬浮提示) -->
+                <div class="group relative flex items-center gap-2.5 px-6 py-3 rounded-full ui-glass ui-text-main hover:-translate-y-1 transition-transform cursor-pointer">
+                    <span class="font-extrabold text-[15px] leading-none">QQ</span>
+                    <!-- 悬浮QQ号 -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block ui-glass px-4 py-2 rounded-lg text-xs font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        Num: 123456789
+                    </div>
+                </div>
+
+                <!-- 电话 -->
+                <a href="tel:+8612345678901" class="flex items-center gap-2.5 px-6 py-3 rounded-full ui-glass ui-text-main hover:-translate-y-1 transition-transform cursor-pointer">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                    <span class="text-sm font-semibold tracking-wide">Contact</span>
+                </a>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 交互脚本 -->
+    <script>
+        const root = document.documentElement;
+        const body = document.getElementById('body-container');
+        const themeBtn = document.getElementById('theme-btn');
+        
+        themeBtn.addEventListener('click', () => {
+            body.classList.toggle('light-mode');
+        });
+
+        let targetX = window.innerWidth / 2;
+        let targetY = window.innerHeight / 2;
+        let currentX = targetX;
+        let currentY = targetY;
+        let targetOpacity = 0;
+        let currentOpacity = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            targetX = e.clientX;
+            targetY = e.clientY;
+            targetOpacity = 1;
+        });
+
+        window.addEventListener('mouseout', (e) => {
+            if (e.relatedTarget === null) {
+                targetOpacity = 0;
+            }
+        });
+
+        function animate() {
+            currentX += (targetX - currentX) * 0.08;
+            currentY += (targetY - currentY) * 0.08;
+            currentOpacity += (targetOpacity - currentOpacity) * 0.06;
+
+            const sceneContainer = document.getElementById('mouse-scene');
+            const rect = sceneContainer.getBoundingClientRect();
+            
+            const relativeX = currentX - rect.left;
+            const relativeY = currentY - rect.top;
+
+            root.style.setProperty('--mouse-x', `${relativeX}px`);
+            root.style.setProperty('--mouse-y', `${relativeY}px`);
+            root.style.setProperty('--bright-opacity', currentOpacity);
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // --- 自动扫光效果 (Auto-Sweep) ---
+        let waveProgress = -20;
+        let waveOpacity = 0;
+        let isWaving = false;
+
+        function triggerSweep() {
+            if (isWaving) return;
+            isWaving = true;
+            waveProgress = -20;
+            waveOpacity = 0;
+
+            // 光束出现时的淡入
+            const fadeIn = setInterval(() => {
+                waveOpacity += 0.05;
+                if (waveOpacity >= 0.85) clearInterval(fadeIn); // 限制最高亮度
+            }, 50);
+
+            // 光束从左到右滑动的动画
+            const sweepAnim = setInterval(() => {
+                waveProgress += 0.6; // 控制光束滑动速度
+                root.style.setProperty('--wave-progress', `${waveProgress}%`);
+                root.style.setProperty('--wave-opacity', waveOpacity);
+
+                // 扫到末尾时淡出
+                if (waveProgress > 90 && waveOpacity > 0) {
+                    waveOpacity -= 0.05;
+                }
+
+                // 动画结束清理
+                if (waveProgress > 130) {
+                    clearInterval(sweepAnim);
+                    isWaving = false;
+                    waveOpacity = 0;
+                    root.style.setProperty('--wave-opacity', '0');
+                }
+            }, 16);
+        }
+
+        // 每隔 10 秒自动扫射一次
+        setInterval(triggerSweep, 10000);
+        
+        // 页面刚加载完成后 1.5 秒主动触发第一次，起到惊艳提示作用
+        setTimeout(triggerSweep, 1500);
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,961 @@
+---
+import type { GalleryItem } from "../lib/gallery";
+
+interface Props {
+  items: GalleryItem[];
+}
+
+const { items } = Astro.props;
+const CARD_COUNT = 44;
+const fallbackItems = Array.from({ length: CARD_COUNT }, (_, i) => ({
+  src: `https://picsum.photos/seed/${i + 200}/800/800`,
+  thumbSrc: `https://picsum.photos/seed/${i + 200}/800/800`,
+  fullSrc: `https://picsum.photos/seed/${i + 200}/1200/1200`,
+  alt: `Gallery image ${i + 1}`,
+  post: null,
+  tone: "any",
+  type: "image",
+}));
+const cardItems = items.length
+  ? Array.from({ length: CARD_COUNT }, (_, i) => {
+      const item = items[i % items.length];
+      return {
+        src: item.src,
+        thumbSrc: item.thumbSrc,
+        fullSrc: item.fullSrc,
+        liveVideoSrc: item.liveVideoSrc,
+        originalVideoSrc: item.originalVideoSrc,
+        alt: item.alt,
+        type: item.type,
+      };
+    })
+  : fallbackItems;
+---
+
+<section class="barrel3d" id="gallery">
+  <p class="barrel3d__eyebrow">06 / MY LIFE</p>
+  <div class="barrel3d__stage" data-barrel3d data-items={JSON.stringify(cardItems)}></div>
+</section>
+
+<script>
+  type ThreeRuntime = typeof import("three");
+  type TextureImage = {
+    width?: number;
+    height?: number;
+    naturalWidth?: number;
+    naturalHeight?: number;
+  };
+
+  const PICSUM_TEXTURE_PATTERN = /https:\/\/picsum\.photos\/seed\/([^/]+)\/\d+\/\d+/u;
+  const damp = (current: number, target: number, lambda: number, dt: number) =>
+    current + (target - current) * (1 - Math.exp(-lambda * dt));
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, Math.round(value)));
+
+  const buildSizedTextureSrc = (src: string, aspect: number, isLarge: boolean) => {
+    const seedMatch = src.match(PICSUM_TEXTURE_PATTERN);
+    if (!seedMatch) return src;
+
+    const isMobile = window.matchMedia("(max-width: 700px)").matches;
+    const longEdge = isMobile ? (isLarge ? 760 : 640) : isLarge ? 1080 : 860;
+    const minEdge = isMobile ? 360 : 460;
+    const maxEdge = isMobile ? 860 : 1200;
+
+    const width =
+      aspect >= 1 ? clamp(longEdge, minEdge, maxEdge) : clamp(longEdge * aspect, minEdge, maxEdge);
+    const height =
+      aspect >= 1 ? clamp(longEdge / aspect, minEdge, maxEdge) : clamp(longEdge, minEdge, maxEdge);
+
+    return `https://picsum.photos/seed/${seedMatch[1]}/${width}/${height}`;
+  };
+
+  const boot = (mount: HTMLElement, THREE: ThreeRuntime) => {
+    const sectionRoot = mount.closest<HTMLElement>(".barrel3d") ?? mount;
+    const itemsAttr = mount.getAttribute("data-items") ?? "[]";
+    let cardItems: Array<{
+      src?: string;
+      thumbSrc?: string;
+      fullSrc?: string;
+      liveVideoSrc?: string;
+      originalVideoSrc?: string;
+      alt?: string;
+      type?: string;
+    }> = [];
+    try {
+      cardItems = JSON.parse(itemsAttr);
+    } catch (_) {
+      cardItems = [];
+    }
+    const getThumbSrc = (index: number) => cardItems[index]?.thumbSrc || cardItems[index]?.src || "";
+
+    const getSize = () => {
+      const rect = mount.getBoundingClientRect();
+      return {
+        w: Math.max(rect.width, 1),
+        h: Math.max(rect.height, 1),
+      };
+    };
+
+    let { w: sceneW, h: sceneH } = getSize();
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog("#030303", 18, 35);
+
+    const camera = new THREE.PerspectiveCamera(32, sceneW / sceneH, 0.1, 100);
+    camera.position.set(0, 0, 24);
+
+    const getPixelRatio = () =>
+      Math.min(window.devicePixelRatio || 1, window.matchMedia("(max-width: 700px)").matches ? 1.5 : 2);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setSize(sceneW, sceneH);
+    renderer.setPixelRatio(getPixelRatio());
+    renderer.setClearColor("#030303", 0);
+    if ((THREE as any).SRGBColorSpace) {
+      (renderer as any).outputColorSpace = (THREE as any).SRGBColorSpace;
+    }
+    mount.appendChild(renderer.domElement);
+
+    const createRoundedShape = (width: number, height: number, radius: number) => {
+      const shape = new THREE.Shape();
+      const x = -width / 2;
+      const y = -height / 2;
+      shape.moveTo(x, y + radius);
+      shape.lineTo(x, y + height - radius);
+      shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+      shape.lineTo(x + width - radius, y + height);
+      shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+      shape.lineTo(x + width, y + radius);
+      shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+      shape.lineTo(x + radius, y);
+      shape.quadraticCurveTo(x, y, x, y + radius);
+      return shape;
+    };
+
+    const normalizePlanarUvs = (geometry: import("three").BufferGeometry) => {
+      geometry.computeBoundingBox();
+      const { min, max } = geometry.boundingBox ?? new THREE.Box3();
+      const width = Math.max(max.x - min.x, 1);
+      const height = Math.max(max.y - min.y, 1);
+      const position = geometry.getAttribute("position") as import("three").BufferAttribute;
+      const uv = new Float32Array(position.count * 2);
+
+      for (let i = 0; i < position.count; i++) {
+        uv[i * 2] = (position.getX(i) - min.x) / width;
+        uv[i * 2 + 1] = (position.getY(i) - min.y) / height;
+      }
+
+      geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    };
+
+    const fitTextureCover = (texture: import("three").Texture, cardAspect: number) => {
+      const image = texture.image as TextureImage;
+      const imageWidth = image.naturalWidth || image.width || 1;
+      const imageHeight = image.naturalHeight || image.height || 1;
+      const imageAspect = imageWidth / imageHeight;
+
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+
+      if (imageAspect > cardAspect) {
+        const repeatX = cardAspect / imageAspect;
+        texture.repeat.set(repeatX, 1);
+        texture.offset.set((1 - repeatX) / 2, 0);
+      } else {
+        const repeatY = imageAspect / cardAspect;
+        texture.repeat.set(1, repeatY);
+        texture.offset.set(0, (1 - repeatY) / 2);
+      }
+
+      texture.needsUpdate = true;
+    };
+
+    const isMobile = window.matchMedia("(max-width: 700px)").matches;
+    const N = Math.min(cardItems.length, isMobile ? 30 : 44);
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cards: Array<{
+      id: number;
+      y: number;
+      radius: number;
+      baseTheta: number;
+      baseW: number;
+      baseH: number;
+      fullAspect: number | null;
+      thumbTexture: import("three").Texture | null;
+      fullTexture: import("three").Texture | null;
+      fullTextureSrc: string;
+      liveVideo: HTMLVideoElement | null;
+      liveVideoTexture: import("three").VideoTexture | null;
+      liveVideoSrc: string;
+      livePlaybackToken: number;
+      isLoadingFull: boolean;
+      badgeMat: import("three").MeshBasicMaterial | null;
+      badgeMesh: import("three").Mesh | null;
+      group: import("three").Group;
+      backMat: import("three").Material & { opacity: number };
+      picMat: import("three").MeshBasicMaterial;
+    }> = [];
+    const hitTargets: import("three").Object3D[] = [];
+    const geometries: import("three").BufferGeometry[] = [];
+    const materials: import("three").Material[] = [];
+    const loadedTextures: import("three").Texture[] = [];
+    const textureJobs: Array<() => Promise<void>> = [];
+    const groupNode = new THREE.Group();
+    scene.add(groupNode);
+
+    const aspectRatios = [4 / 5, 1, 5 / 4, 3 / 4, 4 / 3, 6 / 5];
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin("Anonymous");
+    const createLiveBadgeTexture = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.shadowColor = "rgba(0, 0, 0, 0.42)";
+      ctx.shadowBlur = 9;
+      ctx.shadowOffsetY = 3;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.96)";
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+
+      const drawArc = (radius: number, start: number, end: number) => {
+        ctx.beginPath();
+        ctx.arc(64, 64, radius, start, end);
+        ctx.stroke();
+      };
+
+      drawArc(39, -0.2 * Math.PI, 0.56 * Math.PI);
+      drawArc(39, 0.82 * Math.PI, 1.58 * Math.PI);
+      drawArc(25, 0.08 * Math.PI, 0.78 * Math.PI);
+      drawArc(25, 1.08 * Math.PI, 1.78 * Math.PI);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.98)";
+      ctx.beginPath();
+      ctx.arc(64, 64, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
+      return texture;
+    };
+    const liveBadgeTexture = createLiveBadgeTexture();
+    if (liveBadgeTexture) loadedTextures.push(liveBadgeTexture);
+    let disposed = false;
+
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const y = -4.5 + t * 9;
+      const bulge = Math.cos((y / 4.5) * (Math.PI / 2));
+      const radius = 6.5 + bulge * 3.5;
+      const baseTheta = i * 2.39996;
+      const aspect = aspectRatios[i % aspectRatios.length];
+      const isLarge = i % 11 === 0 || i % 17 === 0;
+      const targetArea = isLarge ? 5.0 : 2.0;
+      const h = Math.sqrt(targetArea / aspect);
+      const w = aspect * h;
+
+      const cardGroup = new THREE.Group();
+      cardGroup.userData = { id: i, y, radius, baseTheta };
+
+      const backingMargin = 0.035;
+      const cornerRadius = 0.045;
+
+      const backingShape = createRoundedShape(w + backingMargin, h + backingMargin, cornerRadius + 0.02);
+      const backingGeo = new THREE.ShapeGeometry(backingShape);
+      normalizePlanarUvs(backingGeo);
+      const backMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const backMesh = new THREE.Mesh(backingGeo, backMat);
+      backMesh.position.z = -0.028;
+      backMesh.renderOrder = -1;
+
+      const picRadius = Math.max(0.02, cornerRadius - backingMargin / 2);
+      const picShape = createRoundedShape(w, h, picRadius);
+      const picGeo = new THREE.ShapeGeometry(picShape);
+      normalizePlanarUvs(picGeo);
+      const baseHue = (i * 137.5) % 360;
+      const picMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(`hsl(${baseHue}, 30%, 25%)`),
+        transparent: true,
+        opacity: 0,
+        depthWrite: true,
+        side: THREE.DoubleSide,
+      });
+      const picMesh = new THREE.Mesh(picGeo, picMat);
+      picMesh.renderOrder = 0;
+      cardGroup.add(backMesh, picMesh);
+
+      let badgeMat: import("three").MeshBasicMaterial | null = null;
+      let badgeMesh: import("three").Mesh | null = null;
+      if (cardItems[i]?.type === "live" && liveBadgeTexture) {
+        const badgeSize = Math.min(w, h) * 0.18;
+        const badgeGeo = new THREE.PlaneGeometry(badgeSize, badgeSize);
+        badgeMat = new THREE.MeshBasicMaterial({
+          map: liveBadgeTexture,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        badgeMesh = new THREE.Mesh(badgeGeo, badgeMat);
+        badgeMesh.position.set(w / 2 - badgeSize * 0.72, -h / 2 + badgeSize * 0.72, 0.05);
+        badgeMesh.renderOrder = 2;
+        badgeMesh.userData.parentGroup = cardGroup;
+        cardGroup.add(badgeMesh);
+        hitTargets.push(badgeMesh);
+        geometries.push(badgeGeo);
+        materials.push(badgeMat);
+      }
+      cardGroup.children.forEach((c) => (c.userData.parentGroup = cardGroup));
+      cardGroup.position.set(0, y, -10);
+
+      const cardRecord = {
+        id: i,
+        y,
+        radius,
+        baseTheta,
+        baseW: w,
+        baseH: h,
+        fullAspect: null as number | null,
+        thumbTexture: null as import("three").Texture | null,
+        fullTexture: null as import("three").Texture | null,
+        fullTextureSrc: "",
+        liveVideo: null as HTMLVideoElement | null,
+        liveVideoTexture: null as import("three").VideoTexture | null,
+        liveVideoSrc: "",
+        livePlaybackToken: 0,
+        isLoadingFull: false,
+        badgeMat,
+        badgeMesh,
+        group: cardGroup,
+        backMat,
+        picMat,
+      };
+      cards.push(cardRecord);
+      hitTargets.push(picMesh, backMesh);
+      geometries.push(backingGeo, picGeo);
+      materials.push(backMat, picMat);
+      groupNode.add(cardGroup);
+
+      textureJobs.push(() => new Promise((resolve) => {
+        const src = getThumbSrc(i);
+        if (!src || disposed) {
+          resolve();
+          return;
+        }
+
+        textureLoader.load(
+          buildSizedTextureSrc(src, aspect, isLarge),
+          (texture) => {
+            if (disposed) {
+              texture.dispose();
+              resolve();
+              return;
+            }
+
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
+            fitTextureCover(texture, w / h);
+            loadedTextures.push(texture);
+            cardRecord.thumbTexture = texture;
+            picMat.map = texture;
+            picMat.color.setHex(0xffffff);
+            picMat.needsUpdate = true;
+            resolve();
+          },
+          undefined,
+          () => resolve(),
+        );
+      }));
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const state = {
+      focusedId: null as number | null,
+      targetRot: 0,
+      globalRot: 0,
+      isDragging: false,
+      startX: 0,
+      lastRot: 0,
+      dragDist: 0,
+      isInViewport: false,
+    };
+
+    const imageAspectFromTexture = (texture: import("three").Texture) => {
+      const image = texture.image as TextureImage;
+      const imageWidth = image.naturalWidth || image.width || 1;
+      const imageHeight = image.naturalHeight || image.height || 1;
+      return imageWidth / imageHeight;
+    };
+
+    const resetTextureTransform = (texture: import("three").Texture) => {
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.repeat.set(1, 1);
+      texture.offset.set(0, 0);
+      texture.needsUpdate = true;
+    };
+
+    const applyFocusedTexture = (card: (typeof cards)[number], texture: import("three").Texture, src: string) => {
+      resetTextureTransform(texture);
+      card.fullAspect = imageAspectFromTexture(texture);
+      card.fullTexture = texture;
+      card.fullTextureSrc = src;
+      card.picMat.map = texture;
+      card.picMat.needsUpdate = true;
+    };
+
+    const restoreThumbTexture = (card: (typeof cards)[number]) => {
+      if (!card.thumbTexture || card.picMat.map === card.thumbTexture) return;
+      card.picMat.map = card.thumbTexture;
+      card.picMat.needsUpdate = true;
+    };
+
+    const stopLiveTexture = (card: (typeof cards)[number]) => {
+      card.livePlaybackToken += 1;
+      if (!card.liveVideo) return;
+      card.liveVideo.pause();
+      card.liveVideo.currentTime = 0;
+    };
+
+    const playLiveTexture = async (card: (typeof cards)[number]) => {
+      const src = cardItems[card.id]?.liveVideoSrc || "";
+      if (!src) return;
+
+      if (!card.liveVideo || card.liveVideoSrc !== src) {
+        card.liveVideo?.pause();
+        card.liveVideoTexture?.dispose();
+        const video = document.createElement("video");
+        video.src = src;
+        video.muted = true;
+        video.loop = false;
+        video.playsInline = true;
+        video.preload = "auto";
+        video.crossOrigin = "anonymous";
+        const videoTexture = new THREE.VideoTexture(video);
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.generateMipmaps = false;
+        if ((THREE as any).SRGBColorSpace) videoTexture.colorSpace = (THREE as any).SRGBColorSpace;
+        card.liveVideo = video;
+        card.liveVideoTexture = videoTexture;
+        card.liveVideoSrc = src;
+        loadedTextures.push(videoTexture);
+      }
+
+      if (!card.liveVideo || !card.liveVideoTexture) return;
+      const playbackToken = ++card.livePlaybackToken;
+
+      try {
+        card.liveVideo.currentTime = 0;
+        if (card.liveVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          await new Promise<void>((resolve, reject) => {
+            const cleanup = () => {
+              card.liveVideo?.removeEventListener("loadeddata", onReady);
+              card.liveVideo?.removeEventListener("error", onError);
+            };
+            const onReady = () => {
+              cleanup();
+              resolve();
+            };
+            const onError = () => {
+              cleanup();
+              reject(new Error("Live video failed to load"));
+            };
+            card.liveVideo?.addEventListener("loadeddata", onReady, { once: true });
+            card.liveVideo?.addEventListener("error", onError, { once: true });
+            card.liveVideo?.load();
+          });
+        }
+        await card.liveVideo.play();
+        if (state.focusedId !== card.id || playbackToken !== card.livePlaybackToken) return;
+        resetTextureTransform(card.liveVideoTexture);
+        const videoAspect =
+          card.liveVideo.videoWidth && card.liveVideo.videoHeight
+            ? card.liveVideo.videoWidth / card.liveVideo.videoHeight
+            : null;
+        if (videoAspect) card.fullAspect = videoAspect;
+        card.picMat.map = card.liveVideoTexture;
+        card.picMat.needsUpdate = true;
+        card.liveVideo.onended = () => {
+          if (state.focusedId !== card.id || playbackToken !== card.livePlaybackToken) return;
+          if (card.fullTexture) applyFocusedTexture(card, card.fullTexture, card.fullTextureSrc);
+          else restoreThumbTexture(card);
+        };
+      } catch (_) {
+        if (card.fullTexture) applyFocusedTexture(card, card.fullTexture, card.fullTextureSrc);
+      }
+    };
+
+    const loadFullTexture = (card: (typeof cards)[number]) => {
+      const src = cardItems[card.id]?.fullSrc || cardItems[card.id]?.src || "";
+      if (!src) return;
+      if (card.fullTexture && card.fullTextureSrc === src) {
+        applyFocusedTexture(card, card.fullTexture, src);
+        return;
+      }
+      if (card.isLoadingFull) return;
+      card.isLoadingFull = true;
+      textureLoader.load(
+        src,
+        (texture) => {
+          card.isLoadingFull = false;
+          if (disposed) {
+            texture.dispose();
+            return;
+          }
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
+          loadedTextures.push(texture);
+          if (state.focusedId === card.id) {
+            const isLivePlaying = cardItems[card.id]?.type === "live" && card.liveVideo && !card.liveVideo.paused;
+            if (isLivePlaying) {
+              card.fullTexture = texture;
+              card.fullTextureSrc = src;
+              card.fullAspect = imageAspectFromTexture(texture);
+            } else {
+              applyFocusedTexture(card, texture, src);
+            }
+          } else {
+            card.fullTexture = texture;
+            card.fullTextureSrc = src;
+            card.fullAspect = imageAspectFromTexture(texture);
+          }
+        },
+        undefined,
+        () => {
+          card.isLoadingFull = false;
+        },
+      );
+    };
+
+    const setFocusedCard = (targetId: number | null) => {
+      const previousId = state.focusedId;
+      state.focusedId = targetId;
+
+      if (previousId !== null && previousId !== targetId) {
+        const previous = cards.find((card) => card.id === previousId);
+        if (previous) {
+          stopLiveTexture(previous);
+          restoreThumbTexture(previous);
+        }
+      }
+
+      if (targetId !== null) {
+        const target = cards.find((card) => card.id === targetId);
+        if (target) {
+          loadFullTexture(target);
+          if (cardItems[target.id]?.type === "live") void playLiveTexture(target);
+        }
+      }
+    };
+
+    const canvas = renderer.domElement;
+    canvas.style.touchAction = "pan-y";
+    const getCanvasPointer = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    };
+    const hitTest = () => {
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(hitTargets, false);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      state.isDragging = true;
+      state.startX = e.clientX;
+      state.lastRot = state.targetRot;
+      state.dragDist = 0;
+      canvas.setPointerCapture(e.pointerId);
+      startAnimation();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (state.isDragging) {
+        const dx = e.clientX - state.startX;
+        state.dragDist += Math.abs(dx);
+        state.targetRot = state.lastRot + dx * 0.003;
+      }
+
+      getCanvasPointer(e.clientX, e.clientY);
+      const intersects = hitTest();
+      canvas.style.cursor = intersects.length > 0 && state.dragDist < 5 ? "pointer" : "auto";
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      state.isDragging = false;
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+    };
+
+    const onPointerLeave = () => {
+      if (!state.isDragging) canvas.style.cursor = "auto";
+    };
+
+    const onClick = (e: MouseEvent) => {
+      if (state.dragDist > 5) return;
+      getCanvasPointer(e.clientX, e.clientY);
+      const intersects = hitTest();
+      if (intersects.length > 0) {
+        const hit = intersects[0].object as import("three").Mesh;
+        const targetId = (hit.userData.parentGroup as import("three").Group).userData.id as number;
+        if (state.focusedId !== null) {
+          if (state.focusedId === targetId && cardItems[targetId]?.type === "live") {
+            const target = cards.find((card) => card.id === targetId);
+            if (target) void playLiveTexture(target);
+            return;
+          }
+          setFocusedCard(null);
+          return;
+        }
+        setFocusedCard(targetId);
+      } else {
+        setFocusedCard(null);
+      }
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+    canvas.addEventListener("pointerleave", onPointerLeave);
+    canvas.addEventListener("click", onClick);
+
+    const onResize = () => {
+      const { w, h } = getSize();
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(getPixelRatio());
+      renderer.setSize(w, h);
+    };
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(mount);
+    window.addEventListener("resize", onResize);
+
+    const applyTheme = (isDark: boolean) => {
+      const targetColor = isDark ? "#0a0b0e" : "#f6f7f9";
+      (scene.fog as import("three").Fog).color.set(targetColor);
+      renderer.setClearColor(targetColor, 0);
+    };
+    applyTheme(!document.body.classList.contains("light-mode"));
+    const onThemeChange = ((evt: CustomEvent) => {
+      applyTheme(evt.detail.mode !== "light");
+    }) as EventListener;
+    window.addEventListener("theme-change", onThemeChange);
+
+    let animationId = 0;
+    let isRunning = false;
+    let texturesStarted = false;
+    let lastFrameTime = performance.now();
+    let isScrollSuspended = document.body.classList.contains("is-scrolling");
+    const targetEuler = new THREE.Euler();
+    const targetQuat = new THREE.Quaternion();
+
+    const startTextureQueue = () => {
+      if (texturesStarted || disposed) return;
+      texturesStarted = true;
+      const concurrency = isMobile ? 2 : 4;
+      let nextIndex = 0;
+      let active = 0;
+      const pump = () => {
+        if (disposed) return;
+        while (active < concurrency && nextIndex < textureJobs.length) {
+          const job = textureJobs[nextIndex];
+          nextIndex += 1;
+          active += 1;
+          void job().finally(() => {
+            active -= 1;
+            pump();
+          });
+        }
+      };
+      pump();
+    };
+
+    const renderFrame = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+      lastFrameTime = now;
+      if (!prefersReducedMotion && state.focusedId === null && !state.isDragging) {
+        state.targetRot -= 0.0012;
+      }
+      state.globalRot += (state.targetRot - state.globalRot) * 0.08;
+
+      const anyFocused = state.focusedId !== null;
+      const rotationAlpha = 1 - Math.exp(-5 * dt);
+      const focusDistance = Math.max(camera.position.z - 15, 1);
+      const visibleH = 2 * Math.tan((camera.fov * Math.PI) / 360) * focusDistance;
+      const visibleW = visibleH * camera.aspect;
+      const maxFocusW = visibleW * (isMobile ? 0.88 : 0.78);
+      const maxFocusH = visibleH * (isMobile ? 0.76 : 0.74);
+
+      cards.forEach((card) => {
+        const { group } = card;
+        const isFocused = card.id === state.focusedId;
+        let tx: number, ty: number, tz: number, trY: number, targetScaleX: number, targetScaleY: number, targetOpacity: number;
+
+        if (isFocused) {
+          const imageAspect = card.fullAspect || card.baseW / card.baseH;
+          const boundAspect = maxFocusW / maxFocusH;
+          const targetW = imageAspect > boundAspect ? maxFocusW : maxFocusH * imageAspect;
+          const targetH = imageAspect > boundAspect ? maxFocusW / imageAspect : maxFocusH;
+          tx = 0;
+          ty = 0;
+          tz = 15;
+          trY = 0;
+          targetScaleX = targetW / card.baseW;
+          targetScaleY = targetH / card.baseH;
+          targetOpacity = 1;
+        } else {
+          const currentAngle = card.baseTheta + state.globalRot;
+          tx = card.radius * Math.cos(currentAngle) * 1.5;
+          ty = card.y;
+          tz = card.radius * Math.sin(currentAngle) * 0.7;
+          trY = Math.atan2(tx, tz);
+          targetScaleX = 1.0;
+          targetScaleY = 1.0;
+          targetOpacity = anyFocused ? 0.02 : 1;
+        }
+
+        group.position.x = damp(group.position.x, tx, 5, dt);
+        group.position.y = damp(group.position.y, ty, 5, dt);
+        group.position.z = damp(group.position.z, tz, 5, dt);
+        targetEuler.set(0, trY, 0);
+        targetQuat.setFromEuler(targetEuler);
+        group.quaternion.slerp(targetQuat, rotationAlpha);
+        group.scale.x = damp(group.scale.x, targetScaleX, 5, dt);
+        group.scale.y = damp(group.scale.y, targetScaleY, 5, dt);
+        group.scale.z = damp(group.scale.z, 1, 5, dt);
+        if (card.badgeMesh) {
+          card.badgeMesh.scale.x = 1 / Math.max(group.scale.x, 0.001);
+          card.badgeMesh.scale.y = 1 / Math.max(group.scale.y, 0.001);
+        }
+
+        const backingOpacity = isFocused ? 0.11 : 0.018;
+        card.backMat.opacity = damp(card.backMat.opacity, targetOpacity * backingOpacity, 4, dt);
+        card.picMat.opacity = damp(card.picMat.opacity, targetOpacity, 4, dt);
+        if (card.badgeMat) {
+          card.badgeMat.opacity = damp(card.badgeMat.opacity, targetOpacity * (isFocused ? 0.9 : 0.82), 4, dt);
+        }
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    const animate = () => {
+      if (!isRunning) return;
+      animationId = requestAnimationFrame(animate);
+      renderFrame();
+    };
+
+    function startAnimation() {
+      if (isRunning || disposed || isScrollSuspended || document.visibilityState === "hidden") return;
+      lastFrameTime = performance.now();
+      isRunning = true;
+      animationId = requestAnimationFrame(animate);
+    }
+
+    const stopAnimation = () => {
+      if (!isRunning) return;
+      isRunning = false;
+      cancelAnimationFrame(animationId);
+      animationId = 0;
+    };
+
+    const visibilityObserver =
+      "IntersectionObserver" in window
+        ? new IntersectionObserver(
+            (entries) => {
+              const isVisible = entries.some((entry) => entry.isIntersecting);
+              state.isInViewport = isVisible;
+              if (isVisible) {
+                startTextureQueue();
+                startAnimation();
+              } else {
+                stopAnimation();
+              }
+            },
+            { rootMargin: "64px 0px", threshold: 0.08 },
+          )
+        : undefined;
+
+    if (visibilityObserver) {
+      visibilityObserver.observe(sectionRoot);
+    } else {
+      state.isInViewport = true;
+      startTextureQueue();
+      startAnimation();
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopAnimation();
+      } else if (state.isInViewport && !isScrollSuspended) {
+        startAnimation();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    const onScrollStart = () => {
+      isScrollSuspended = true;
+      stopAnimation();
+    };
+    const onScrollEnd = () => {
+      isScrollSuspended = false;
+      if (state.isInViewport) startAnimation();
+    };
+    window.addEventListener("page-scroll-start", onScrollStart as EventListener);
+    window.addEventListener("page-scroll-end", onScrollEnd as EventListener);
+
+    const cleanup = () => {
+      disposed = true;
+      stopAnimation();
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+      canvas.removeEventListener("click", onClick);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("theme-change", onThemeChange);
+      window.removeEventListener("page-scroll-start", onScrollStart as EventListener);
+      window.removeEventListener("page-scroll-end", onScrollEnd as EventListener);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      visibilityObserver?.disconnect();
+      resizeObserver.disconnect();
+      if (mount.contains(canvas)) mount.removeChild(canvas);
+      loadedTextures.forEach((texture) => texture.dispose());
+      materials.forEach((material) => material.dispose());
+      geometries.forEach((geometry) => geometry.dispose());
+      renderer.dispose();
+    };
+    window.addEventListener("beforeunload", cleanup, { once: true });
+  };
+
+  const lazyBoot = (mount: HTMLElement) => {
+    let hasStarted = false;
+    let bootObserver: IntersectionObserver | undefined;
+    const sectionRoot = mount.closest<HTMLElement>(".barrel3d") ?? mount;
+
+    const start = async () => {
+      if (hasStarted) return;
+      hasStarted = true;
+      bootObserver?.disconnect();
+      window.removeEventListener("scroll", maybeStart);
+      window.removeEventListener("resize", maybeStart);
+      const THREE = await import("three");
+      boot(mount, THREE);
+    };
+
+    const maybeStart = () => {
+      if (hasStarted) return;
+      const rect = sectionRoot.getBoundingClientRect();
+      const preloadDistance = 320;
+      if (rect.top <= window.innerHeight + preloadDistance && rect.bottom >= -preloadDistance) {
+        void start();
+      }
+    };
+
+    if ("IntersectionObserver" in window) {
+      bootObserver = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            void start();
+          }
+        },
+        { rootMargin: "320px 0px", threshold: 0 },
+      );
+      bootObserver.observe(sectionRoot);
+      window.addEventListener("scroll", maybeStart, { passive: true });
+      window.addEventListener("resize", maybeStart, { passive: true });
+      window.requestAnimationFrame(maybeStart);
+    } else {
+      void start();
+    }
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-barrel3d]").forEach((el) => {
+    if (el.dataset.booted === "1") return;
+    el.dataset.booted = "1";
+    lazyBoot(el);
+  });
+</script>
+
+<style>
+  .barrel3d {
+    position: relative;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    height: 100dvh;
+    min-height: 760px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 48% 36%, rgba(94, 234, 212, 0.045), transparent 34%),
+      linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 92%, black 8%) 18%, var(--bg) 100%);
+    isolation: isolate;
+  }
+
+  :global(body.light-mode) .barrel3d {
+    background:
+      radial-gradient(circle at 48% 36%, rgba(99, 102, 241, 0.06), transparent 34%),
+      linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 94%, white 6%) 18%, var(--bg) 100%);
+  }
+
+  .barrel3d__stage {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .barrel3d__stage :global(canvas) {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .barrel3d__eyebrow {
+    position: absolute;
+    top: clamp(26px, 4vw, 52px);
+    left: max(24px, calc((100vw - var(--container)) / 2));
+    z-index: 10;
+    margin: 0;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.76rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  :global(body.light-mode) .barrel3d__eyebrow {
+    color: rgba(0, 0, 0, 0.46);
+  }
+
+  @media (max-width: 720px) {
+    .barrel3d {
+      min-height: 680px;
+    }
+  }
+</style>

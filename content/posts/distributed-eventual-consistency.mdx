@@ -1,0 +1,63 @@
+---
+title: 分布式系统里的“最终一致性”其实没那么玄乎
+description: 从用户感知出发，重新解释 CAP、补偿和“数据到底什么时候算对上了”。
+date: 2026-05-07
+tags:
+  - distributed
+  - consistency
+  - backend
+draft: false
+cover: https://picsum.photos/seed/consistency-cover/1200/720
+---
+最终一致性最容易被讲成一件很抽象的事，好像只要系统一分布，数据就会自动进入某种神秘的模糊地带。
+
+我后来更愿意把它翻译成一句更具体的话：**你允许用户在多长时间内看到暂时不一致的结果**。
+
+<figure className="content-image content-image--center content-image--w66">
+  <img src="https://picsum.photos/seed/consistency-1/1200/800" alt="数据同步过程示意图" />
+</figure>
+
+## 先别从协议开始，先从用户开始
+
+一个订单系统里，库存服务、支付服务、通知服务常常不会在同一瞬间完成写入。用户关心的不是你是不是用了某个漂亮的算法，而是：
+
+- 钱扣了没有
+- 页面上的状态是不是可信
+- 如果有延迟，延迟会不会让他失去判断依据
+
+这也是为什么“最终一致”不是技术团队内部的抽象标签，而是产品体验的一部分。
+
+## 一致性的成本来自哪里
+
+要在所有副本、所有服务之间立刻达成完全一致，代价通常会落在两个地方：
+
+- 可用性下降
+- 延迟上升
+
+如果业务允许“先完成主事务，再补偿外围动作”，那么最终一致性往往是更现实的选择。
+
+
+<figure className="content-image content-image--center content-image--w33">
+  <img src="/uploads/gallery/截屏-2026-05-05-161140png-1778141581254.png" alt="图片说明" />
+</figure>
+
+
+```ts
+await orderRepository.create(order);
+await outboxRepository.append({
+  topic: "order.created",
+  payload: { orderId: order.id },
+});
+```
+
+关键不在于代码长什么样，而在于你是否给补偿、重试、幂等和可观测性留下了位置。
+
+## 别把“最终”留给想象
+
+“最终”必须被定义成一个业务上可接受的窗口，而不是一句笼统承诺。
+
+如果库存页面允许 2 秒延迟，通知允许 30 秒延迟，那就要把这些窗口变成监控指标，而不是埋在脑子里。
+
+![咖啡杯和消息队列的占位图](https://picsum.photos/seed/consistency-2/1200/800)
+
+我越来越觉得，所谓架构成熟，不是系统从不延迟，而是团队能清楚地说出延迟意味着什么，以及超出阈值时如何收场。

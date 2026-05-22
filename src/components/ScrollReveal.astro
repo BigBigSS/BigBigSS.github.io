@@ -1,0 +1,113 @@
+---
+interface Props {
+  animation?: "fade-up" | "fade-left" | "fade-right" | "fade-in";
+  delay?: number;
+  duration?: number;
+  class?: string;
+  id?: string;
+}
+
+const {
+  animation = "fade-up",
+  delay = 0,
+  duration = 800,
+  class: className,
+  id,
+} = Astro.props;
+---
+
+<div
+  id={id}
+  class:list={["reveal-wrap", className]}
+  data-reveal
+  data-animation={animation}
+  style={`--delay: ${delay}ms; --duration: ${duration}ms;`}
+>
+  <slot />
+</div>
+
+<script>
+  const revealWindow = window as typeof window & {
+    __scrollRevealSetup?: () => void;
+  };
+
+  if (!revealWindow.__scrollRevealSetup) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!(entry.target instanceof HTMLElement) || !entry.isIntersecting) {
+            return;
+          }
+
+          entry.target.classList.add("is-revealed");
+          entry.target.style.willChange = "auto";
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px -50px 0px",
+        threshold: 0.1,
+      }
+    );
+
+    revealWindow.__scrollRevealSetup = () => {
+      document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => {
+        if (el.dataset.revealBound === "1" || el.classList.contains("is-revealed")) {
+          return;
+        }
+
+        el.dataset.revealBound = "1";
+        observer.observe(el);
+      });
+    };
+
+    document.addEventListener("astro:page-load", () => {
+      revealWindow.__scrollRevealSetup?.();
+    });
+  }
+
+  revealWindow.__scrollRevealSetup();
+</script>
+
+<style>
+  .reveal-wrap {
+    opacity: 0;
+    transition-property: opacity, transform;
+    transition-timing-function: var(--ease-cinema, cubic-bezier(0.16, 1, 0.3, 1));
+    transition-duration: var(--duration, 800ms);
+    transition-delay: var(--delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .reveal-wrap[data-animation="fade-up"] {
+    transform: translateY(40px);
+  }
+
+  .reveal-wrap[data-animation="fade-left"] {
+    transform: translateX(40px);
+  }
+
+  .reveal-wrap[data-animation="fade-right"] {
+    transform: translateX(-40px);
+  }
+  
+  .reveal-wrap[data-animation="fade-in"] {
+    transform: scale(0.98);
+  }
+
+  /* When reduced motion is on, just fade in immediately if visible */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-wrap {
+      transition-duration: 0ms !important;
+      transition-delay: 0ms !important;
+      transform: none !important;
+    }
+  }
+
+  .reveal-wrap.is-revealed {
+    opacity: 1;
+    transform: translate(0) scale(1);
+    will-change: auto;
+  }
+</style>
