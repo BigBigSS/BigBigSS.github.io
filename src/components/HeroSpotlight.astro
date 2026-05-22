@@ -3,15 +3,23 @@ import { site } from "../data/site";
 ---
 
 <section class="hero" data-hero-root>
-  <!-- WebGL Canvas 容器 -->
-  <div class="webgl-hero-container" aria-hidden="true">
-    <canvas id="webgl-canvas"></canvas>
+  <div class="noise-overlay" aria-hidden="true"></div>
+  <div class="ambient-glow" aria-hidden="true"></div>
+
+  <div class="scene-container dim-scene" aria-hidden="true">
+    <div class="ribbon ribbon-1"></div>
+    <div class="ribbon ribbon-2"></div>
+    <div class="ribbon ribbon-3"></div>
+    <div class="ribbon ribbon-4"></div>
   </div>
 
-  <!-- 静态降级背景 (当 WebGL 失败时可见) -->
-  <div class="hero-fallback-bg" aria-hidden="true"></div>
-
-  <div class="ambient-glow" aria-hidden="true"></div>
+  <!-- 合并版动态掩码光效层 -->
+  <div class="scene-container active-scene" data-active-scene aria-hidden="true">
+    <div class="ribbon ribbon-1"></div>
+    <div class="ribbon ribbon-2"></div>
+    <div class="ribbon ribbon-3"></div>
+    <div class="ribbon ribbon-4"></div>
+  </div>
 
   <div class="hero__shell">
     <div class="hero__content">
@@ -54,15 +62,14 @@ import { site } from "../data/site";
 </section>
 
 <script>
-  import { Renderer, Camera, Transform, Plane, Program, Mesh, Texture } from 'ogl';
+  const heroRoot = document.querySelector<HTMLElement>("[data-hero-root]");
+  const activeScene = document.querySelector<HTMLElement>("[data-active-scene]");
 
-  const hero = document.querySelector<HTMLElement>("[data-hero-root]");
-  const canvas = document.querySelector<HTMLCanvasElement>("#webgl-canvas");
-
-  if (hero && canvas) {
+  if (heroRoot && activeScene) {
+    const hero = heroRoot;
+    const scene = activeScene;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // 交互状态变量
     let targetX = window.innerWidth / 2;
     let targetY = window.innerHeight / 2;
     let currentX = targetX;
@@ -70,7 +77,7 @@ import { site } from "../data/site";
     let targetOpacity = 0;
     let currentOpacity = 0;
 
-    let waveProgress = -0.3;
+    let waveProgress = -20;
     let waveOpacity = 0;
     let isWaving = false;
     let sweepTimer = 0;
@@ -79,498 +86,144 @@ import { site } from "../data/site";
     let animationId = 0;
     let isRunning = false;
     let inViewport = false;
-    let time = 0;
 
-    // 颜色渐变断点配置
-    interface GradientColor {
-      offset: number;
-      color: string;
-    }
+    const triggerSweep = () => {
+      if (isWaving || reducedMotion) return;
+      isWaving = true;
+      waveProgress = -20;
+      waveOpacity = 0;
+      startAnimation();
+    };
 
-    // 暗色模式：轻奢科幻，去除高对比度的生硬纯白
-    const ribbonsColorsDark: GradientColor[][] = [
-      [
-        { offset: 0, color: "#000000" },
-        { offset: 0.18, color: "#06030f" },
-        { offset: 0.42, color: "#190938" },
-        { offset: 0.65, color: "#5423b8" },
-        { offset: 0.88, color: "#8d64e0" },
-        { offset: 1.0, color: "#000000" }
-      ],
-      [
-        { offset: 0, color: "#000000" },
-        { offset: 0.15, color: "#011014" },
-        { offset: 0.40, color: "#07323f" },
-        { offset: 0.68, color: "#197c85" },
-        { offset: 0.90, color: "#5eead4" },
-        { offset: 1.0, color: "#000000" }
-      ],
-      [
-        { offset: 0, color: "#000000" },
-        { offset: 0.15, color: "#140401" },
-        { offset: 0.38, color: "#470b00" },
-        { offset: 0.65, color: "#a12f0b" },
-        { offset: 0.88, color: "#fca5a5" },
-        { offset: 1.0, color: "#000000" }
-      ],
-      [
-        { offset: 0, color: "#000000" },
-        { offset: 0.15, color: "#14000c" },
-        { offset: 0.42, color: "#4c0529" },
-        { offset: 0.68, color: "#991b58" },
-        { offset: 0.90, color: "#f472b6" },
-        { offset: 1.0, color: "#000000" }
-      ]
-    ];
+    const scheduleFirstSweep = () => {
+      if (firstSweepScheduled || reducedMotion) return;
+      firstSweepScheduled = true;
+      window.setTimeout(triggerSweep, 1500);
+    };
 
-    // 亮色模式：极致清透的莫兰迪马卡龙色与优雅香槟色，平滑融入白色背景
-    const ribbonsColorsLight: GradientColor[][] = [
-      [
-        { offset: 0, color: "var(--bg)" },
-        { offset: 0.20, color: "#faf5ff" },
-        { offset: 0.48, color: "#e9d5ff" },
-        { offset: 0.78, color: "#c084fc" },
-        { offset: 0.92, color: "#f3e8ff" },
-        { offset: 1.0, color: "var(--bg)" }
-      ],
-      [
-        { offset: 0, color: "var(--bg)" },
-        { offset: 0.20, color: "#f0fdfa" },
-        { offset: 0.48, color: "#99f6e4" },
-        { offset: 0.78, color: "#2dd4bf" },
-        { offset: 0.92, color: "#ccfbf1" },
-        { offset: 1.0, color: "var(--bg)" }
-      ],
-      [
-        { offset: 0, color: "var(--bg)" },
-        { offset: 0.20, color: "#fff7ed" },
-        { offset: 0.48, color: "#fed7aa" },
-        { offset: 0.78, color: "#fb923c" },
-        { offset: 0.92, color: "#ffedd5" },
-        { offset: 1.0, color: "var(--bg)" }
-      ],
-      [
-        { offset: 0, color: "var(--bg)" },
-        { offset: 0.20, color: "#fff1f2" },
-        { offset: 0.48, color: "#fbcfe8" },
-        { offset: 0.78, color: "#f472b6" },
-        { offset: 0.92, color: "#fce7f3" },
-        { offset: 1.0, color: "var(--bg)" }
-      ]
-    ];
+    const startSweepTimer = () => {
+      if (sweepTimer || reducedMotion) return;
+      sweepTimer = window.setInterval(triggerSweep, 10000);
+    };
 
-    try {
-      // 1. 初始化 OGL WebGL 渲染管线
-      const renderer = new Renderer({
-        canvas: canvas,
-        alpha: true,
-        premultipliedAlpha: true,
-        antialias: true
-      });
-      const gl = renderer.gl;
+    const stopSweepTimer = () => {
+      if (sweepTimer) {
+        window.clearInterval(sweepTimer);
+        sweepTimer = 0;
+      }
+    };
 
-      const camera = new Camera(gl, { fov: 45, near: 0.1, far: 100 });
-      camera.position.set(0, 0, 8.5);
+    const onPointerMove = (e: PointerEvent) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      targetOpacity = 1;
+      startAnimation();
+    };
 
-      const scene = new Transform();
+    const onPointerLeave = () => {
+      targetOpacity = 0;
+      startAnimation();
+    };
 
-      // 2. 动态创建 Canvas 2D 渐变精灵纹理
-      const canvas2d = document.createElement("canvas");
-      canvas2d.width = 512;
-      canvas2d.height = 4;
+    hero.addEventListener("pointermove", onPointerMove);
+    hero.addEventListener("pointerleave", onPointerLeave);
 
-      const texture = new Texture(gl, {
-        generateMipmaps: false,
-        minFilter: gl.LINEAR,
-        magFilter: gl.LINEAR,
-        wrapS: gl.CLAMP_TO_EDGE,
-        wrapT: gl.CLAMP_TO_EDGE
-      });
+    function animate() {
+      if (!isRunning) return;
 
-      const checkIsLightMode = () => {
-        return (
-          document.documentElement.classList.contains("light-mode") ||
-          document.body.classList.contains("light-mode") ||
-          document.documentElement.classList.contains("theme-preboot-light")
-        );
-      };
+      currentX += (targetX - currentX) * 0.08;
+      currentY += (targetY - currentY) * 0.08;
+      currentOpacity += (targetOpacity - currentOpacity) * 0.06;
 
-      const updateGradientTexture = () => {
-        const ctx = canvas2d.getContext("2d");
-        if (!ctx) return;
-        const w = canvas2d.width;
-        ctx.clearRect(0, 0, w, 4);
+      const rect = scene.getBoundingClientRect();
+      const relativeX = currentX - rect.left;
+      const relativeY = currentY - rect.top;
 
-        const isLight = checkIsLightMode();
-        const ribbons = isLight ? ribbonsColorsLight : ribbonsColorsDark;
-        
-        const bgComputed = isLight 
-          ? (getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff') 
-          : '#000000';
+      hero.style.setProperty("--mouse-x", `${relativeX}px`);
+      hero.style.setProperty("--mouse-y", `${relativeY}px`);
+      hero.style.setProperty("--bright-opacity", currentOpacity.toString());
+      hero.style.setProperty("--bright-opacity-60", (currentOpacity * 0.6).toString());
+      hero.style.setProperty("--bright-opacity-10", (currentOpacity * 0.1).toString());
 
-        for (let i = 0; i < 4; i++) {
-          const gradient = ctx.createLinearGradient(0, 0, w, 0);
-          ribbons[i].forEach(stop => {
-            let color = stop.color;
-            if (color === "var(--bg)") {
-              color = bgComputed;
-            }
-            gradient.addColorStop(stop.offset, color);
-          });
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, i, w, 1);
+      if (isWaving) {
+        waveProgress += 0.6;
+        if (waveProgress <= 90) {
+          waveOpacity = Math.min(0.85, waveOpacity + 0.016);
+        } else if (waveProgress > 90 && waveOpacity > 0) {
+          waveOpacity -= 0.05;
         }
-
-        texture.image = canvas2d;
-        texture.needsUpdate = true;
-      };
-
-      updateGradientTexture();
-
-      // 3. 编写着色器与创建 Program
-      const vertexShader = `
-        attribute vec3 position;
-        attribute vec2 uv;
-
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        uniform float uTime;
-        uniform float uOffset;
-        uniform float uWaveAmp;
-
-        varying vec2 vUv;
-        varying float vDepth;
-
-        void main() {
-            vUv = uv;
-            vec3 pos = position;
-            
-            // 1. 更大幅度且非均匀的优雅摆动 (打造真正的 S 弯飘逸曲线)
-            float timeFactor = uTime * 0.9 + uOffset;
-            float waveX = sin(pos.y * 1.5 + timeFactor) * 0.38 * uWaveAmp;
-            float waveZ = cos(pos.y * 1.2 + timeFactor * 1.1) * 0.28 * uWaveAmp;
-            
-            // 2. 局部 3D 扭拧 (Twist) - 绕 Y 轴进行局部倾斜旋转，创造丝织高反光转折
-            float twistAngle = sin(pos.y * 1.0 + uTime * 0.6) * 0.32 * uWaveAmp;
-            float c = cos(twistAngle);
-            float s = sin(twistAngle);
-            float rx = pos.x * c - pos.z * s;
-            float rz = pos.x * s + pos.z * c;
-            
-            pos.x = rx + waveX;
-            pos.z = rz + waveZ;
-            
-            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-            gl_Position = projectionMatrix * mvPosition;
-            vDepth = mvPosition.z;
+        hero.style.setProperty("--wave-progress", `${waveProgress}%`);
+        hero.style.setProperty("--wave-opacity", waveOpacity.toString());
+        if (waveProgress > 130) {
+          isWaving = false;
+          waveOpacity = 0;
+          hero.style.setProperty("--wave-opacity", "0");
         }
-      `;
-
-      const fragmentShader = `
-        precision highp float;
-
-        uniform sampler2D uGradientTex;
-        uniform float uRibbonIndex;
-        uniform vec2 uMouse;
-        uniform vec2 uResolution;
-        uniform float uBrightOpacity;
-        uniform float uDimOpacity;
-        uniform float uWaveProgress;
-        uniform float uWaveOpacity;
-        uniform float uTime;
-        uniform float uNoiseIntensity;
-
-        varying vec2 vUv;
-        varying float vDepth;
-
-        float random(vec2 st) {
-            return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
-        }
-
-        void main() {
-            float vCoord = (uRibbonIndex + 0.5) / 4.0;
-            vec4 ribbonColor = texture2D(uGradientTex, vec2(vUv.x, vCoord));
-            
-            // 1. 鼠标跟随聚光灯和流动扫光计算
-            float mouseDist = distance(gl_FragCoord.xy, uMouse);
-            float mouseRadius = uResolution.x * 0.45; 
-            float mouseMask = smoothstep(mouseRadius, 0.0, mouseDist) * uBrightOpacity;
-            
-            float distToWave = abs(vUv.y - uWaveProgress);
-            float waveMask = smoothstep(0.22, 0.0, distToWave) * uWaveOpacity;
-            
-            // 2. 空气感羽化遮罩 (左右边缘羽化 + 上下淡出，杜绝塑料板硬边缘)
-            float edgeAlphaX = smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x);
-            float edgeAlphaY = smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.75, vUv.y);
-            float totalEdgeAlpha = edgeAlphaX * edgeAlphaY;
-            
-            // 3. 动态光强与 Alpha 苏醒的交互反馈
-            float activeFactor = mouseMask + waveMask * 1.5;
-            float finalAlpha = mix(uDimOpacity, 0.82, activeFactor) * ribbonColor.a * totalEdgeAlpha;
-            float brightness = mix(0.75, 1.45, activeFactor);
-            
-            // 4. 丝绸凹面动态微高光 (数学模拟丝织品的软高光，替代生硬白线)
-            float specular = pow(sin(vUv.x * 3.14159), 3.5) * 0.22 * brightness;
-            
-            // 5. 颜色合成与深度雾化
-            vec3 finalColor = ribbonColor.rgb * brightness + vec3(specular);
-            float fog = smoothstep(-5.0, 2.5, vDepth);
-            finalColor = mix(finalColor * 0.25, finalColor, fog);
-            
-            // 6. 微晶随机噪点叠加
-            float noise = (random(gl_FragCoord.xy + uTime * 0.06) - 0.5) * uNoiseIntensity;
-            finalColor += vec3(noise);
-            
-            gl_FragColor = vec4(finalColor, finalAlpha);
-        }
-      `;
-
-      // 4. 建立细分网格 (Y轴有60分段保证完美弯曲)
-      const geometry = new Plane(gl, {
-        width: 1,
-        height: 1,
-        widthSegments: 1,
-        heightSegments: 60
-      });
-
-      // 5. 降低宽度比例 (从 1.9~2.5 收缩到 1.1~1.45)，并轻微拉开位置，留白更具呼吸感
-      const meshes: Mesh[] = [];
-      const ribbonParams = [
-        { index: 0.0, offset: 0.0, pos: [-3.3, 0, -1.0], rot: [0, -12, 6], scale: [1.1, 8.5, 1.0] },
-        { index: 1.0, offset: 3.0, pos: [-1.1, 0, 0.0], rot: [0, -20, -1], scale: [1.3, 8.5, 1.0] },
-        { index: 2.0, offset: 6.0, pos: [1.2, 0, 1.0], rot: [0, -28, -8], scale: [1.45, 8.5, 1.0] },
-        { index: 3.0, offset: 9.0, pos: [3.4, 0, 2.0], rot: [0, -36, -14], scale: [1.2, 8.5, 1.0] }
-      ];
-
-      // 亮色下调低非活跃透明度 (uDimOpacity = 0.18)，暗色下下调 (uDimOpacity = 0.22)
-      // 鼠标未滑过时只呈现极淡的薄纱影子，亮起时才光芒醒目
-      const isLightMode = checkIsLightMode();
-      const uniforms = {
-        uGradientTex: { value: texture },
-        uTime: { value: 0 },
-        uWaveAmp: { value: reducedMotion ? 0.0 : 1.0 },
-        uMouse: { value: [currentX, currentY] },
-        uResolution: { value: [gl.canvas.width, gl.canvas.height] },
-        uBrightOpacity: { value: 0 },
-        uDimOpacity: { value: isLightMode ? 0.18 : 0.22 },
-        uWaveProgress: { value: waveProgress },
-        uWaveOpacity: { value: waveOpacity },
-        uNoiseIntensity: { value: 0.032 }
-      };
-
-      ribbonParams.forEach(param => {
-        const program = new Program(gl, {
-          vertex: vertexShader,
-          fragment: fragmentShader,
-          uniforms: {
-            uGradientTex: uniforms.uGradientTex,
-            uTime: uniforms.uTime,
-            uWaveAmp: uniforms.uWaveAmp,
-            uMouse: uniforms.uMouse,
-            uResolution: uniforms.uResolution,
-            uBrightOpacity: uniforms.uBrightOpacity,
-            uDimOpacity: uniforms.uDimOpacity,
-            uWaveProgress: uniforms.uWaveProgress,
-            uWaveOpacity: uniforms.uWaveOpacity,
-            uNoiseIntensity: uniforms.uNoiseIntensity,
-            uRibbonIndex: { value: param.index },
-            uOffset: { value: param.offset }
-          },
-          transparent: true,
-          depthTest: true,
-          depthWrite: false
-        });
-
-        const mesh = new Mesh(gl, { geometry, program });
-        mesh.position.set(param.pos[0], param.pos[1], param.pos[2]);
-        mesh.rotation.set(
-          (param.rot[0] * Math.PI) / 180,
-          (param.rot[1] * Math.PI) / 180,
-          (param.rot[2] * Math.PI) / 180
-        );
-        mesh.scale.set(param.scale[0], param.scale[1], param.scale[2]);
-        mesh.setParent(scene);
-        meshes.push(mesh);
-      });
-
-      // 6. 自适应 Resize 处理
-      const resize = () => {
-        const width = hero.clientWidth;
-        const height = hero.clientHeight;
-
-        renderer.setSize(width, height);
-        camera.perspective({ aspect: gl.canvas.width / gl.canvas.height });
-
-        const aspect = width / height;
-        if (aspect < 1.0) {
-          // 移动端/窄屏向右偏离，保证不与主体文字发生视觉重合
-          scene.position.set(0.7, 0, 0);
-          scene.scale.set(0.85, 0.85, 0.85);
-        } else {
-          scene.position.set(0, 0, 0);
-          scene.scale.set(1.0, 1.0, 1.0);
-        }
-
-        uniforms.uResolution.value = [gl.canvas.width, gl.canvas.height];
-      };
-
-      window.addEventListener("resize", resize);
-      resize();
-
-      // 7. 亮暗模式切换 MutationObserver 同步
-      const observerTheme = new MutationObserver(() => {
-        updateGradientTexture();
-        uniforms.uDimOpacity.value = checkIsLightMode() ? 0.18 : 0.22;
-      });
-      observerTheme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-      observerTheme.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-
-      // 8. 交互事件监听与缓动
-      const onPointerMove = (e: PointerEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        targetX = e.clientX - rect.left;
-        targetY = rect.height - (e.clientY - rect.top);
-        targetOpacity = 1.0;
-        startAnimation();
-      };
-
-      const onPointerLeave = () => {
-        targetOpacity = 0.0;
-        startAnimation();
-      };
-
-      hero.addEventListener("pointermove", onPointerMove);
-      hero.addEventListener("pointerleave", onPointerLeave);
-
-      // 9. 流动扫光驱动
-      const triggerSweep = () => {
-        if (isWaving || reducedMotion) return;
-        isWaving = true;
-        waveProgress = -0.3;
-        waveOpacity = 0.0;
-        startAnimation();
-      };
-
-      const scheduleFirstSweep = () => {
-        if (firstSweepScheduled || reducedMotion) return;
-        firstSweepScheduled = true;
-        window.setTimeout(triggerSweep, 1500);
-      };
-
-      const startSweepTimer = () => {
-        if (sweepTimer || reducedMotion) return;
-        sweepTimer = window.setInterval(triggerSweep, 10000);
-      };
-
-      const stopSweepTimer = () => {
-        if (sweepTimer) {
-          window.clearInterval(sweepTimer);
-          sweepTimer = 0;
-        }
-      };
-
-      // 10. 核心渲染循环 (Render Loop)
-      const animate = () => {
-        if (!isRunning) return;
-
-        time += 0.01;
-        uniforms.uTime.value = time;
-
-        currentX += (targetX - currentX) * 0.08;
-        currentY += (targetY - currentY) * 0.08;
-        currentOpacity += (targetOpacity - currentOpacity) * 0.06;
-
-        const dpr = window.devicePixelRatio || 1;
-        uniforms.uMouse.value = [currentX * dpr, currentY * dpr];
-        uniforms.uBrightOpacity.value = currentOpacity;
-
-        if (isWaving) {
-          waveProgress += 0.007;
-          if (waveProgress <= 0.5) {
-            waveOpacity = Math.min(0.85, waveOpacity + 0.016);
-          } else if (waveProgress > 0.5 && waveOpacity > 0) {
-            waveOpacity -= 0.038;
-          }
-          uniforms.uWaveProgress.value = waveProgress;
-          uniforms.uWaveOpacity.value = Math.max(0.0, waveOpacity);
-
-          if (waveProgress > 1.3) {
-            isWaving = false;
-            waveOpacity = 0.0;
-            uniforms.uWaveOpacity.value = 0.0;
-          }
-        }
-
-        renderer.render({ scene, camera });
-
-        const isIdle =
-          !isWaving &&
-          Math.abs(targetX - currentX) < 0.2 &&
-          Math.abs(targetY - currentY) < 0.2 &&
-          Math.abs(targetOpacity - currentOpacity) < 0.001;
-
-        if (isIdle) {
-          stopAnimation();
-          return;
-        }
-
-        animationId = requestAnimationFrame(animate);
-      };
-
-      const startAnimation = () => {
-        if (isRunning || !inViewport || document.visibilityState === "hidden") return;
-        isRunning = true;
-        animationId = requestAnimationFrame(animate);
-      };
-
-      const stopAnimation = () => {
-        isRunning = false;
-        if (animationId) {
-          cancelAnimationFrame(animationId);
-          animationId = 0;
-        }
-      };
-
-      // 11. IntersectionObserver 视口监控节能机制
-      if ("IntersectionObserver" in window) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            const visible = entries.some((entry) => entry.isIntersecting);
-            inViewport = visible;
-            if (visible) {
-              startSweepTimer();
-              scheduleFirstSweep();
-              startAnimation();
-            } else {
-              stopSweepTimer();
-              stopAnimation();
-            }
-          },
-          { rootMargin: "0px", threshold: 0 }
-        );
-        observer.observe(hero);
-      } else {
-        inViewport = true;
-        startSweepTimer();
-        scheduleFirstSweep();
-        startAnimation();
       }
 
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") {
-          stopAnimation();
-          stopSweepTimer();
-        } else if (inViewport) {
-          startSweepTimer();
-          startAnimation();
-        }
-      });
+      const idle =
+        !isWaving &&
+        Math.abs(targetX - currentX) < 0.1 &&
+        Math.abs(targetY - currentY) < 0.1 &&
+        Math.abs(targetOpacity - currentOpacity) < 0.001;
 
-    } catch (err) {
-      console.warn("WebGL initialization failed, falling back to CSS background:", err);
-      hero.classList.add("webgl-fallback");
+      if (idle) {
+        stopAnimation();
+        return;
+      }
+
+      animationId = requestAnimationFrame(animate);
     }
+
+    function startAnimation() {
+      if (isRunning || !inViewport || document.visibilityState === "hidden") return;
+      isRunning = true;
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function stopAnimation() {
+      isRunning = false;
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = 0;
+      }
+    }
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries.some((entry) => entry.isIntersecting);
+          inViewport = visible;
+          if (visible) {
+            startSweepTimer();
+            scheduleFirstSweep();
+            startAnimation();
+          } else {
+            stopSweepTimer();
+            stopAnimation();
+          }
+        },
+        { rootMargin: "0px", threshold: 0 },
+      );
+      observer.observe(hero);
+    } else {
+      inViewport = true;
+      startSweepTimer();
+      scheduleFirstSweep();
+      startAnimation();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        stopAnimation();
+        stopSweepTimer();
+      } else if (inViewport) {
+        startSweepTimer();
+        startAnimation();
+      }
+    });
   }
+
 </script>
 
 <style is:global>
@@ -582,6 +235,19 @@ import { site } from "../data/site";
     overflow: hidden;
     isolation: isolate;
     color: var(--ui-text-main);
+  }
+
+  .hero .noise-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 50;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: var(--hero-noise-opacity);
   }
 
   .hero[data-hero-wave-active] .ui-glass:hover,
@@ -615,13 +281,14 @@ import { site } from "../data/site";
     );
   }
 
-  .hero .webgl-hero-container {
+  .hero .scene-container {
     position: absolute;
     top: -12vh;
     right: -13vw;
     width: 82vw;
     height: 190vh;
-    z-index: 1;
+    perspective: 1200px;
+    transform-style: preserve-3d;
     pointer-events: none;
     contain: layout paint style;
     mask-image: linear-gradient(
@@ -642,54 +309,153 @@ import { site } from "../data/site";
     );
   }
 
-  .hero #webgl-canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
+  .hero .dim-scene {
+    z-index: 1;
+    opacity: var(--dim-opacity);
+    transition: opacity 0.45s ease;
   }
 
-  .hero .hero-fallback-bg {
+  .hero .active-scene {
+    z-index: 2;
+    mask-image: 
+      radial-gradient(
+        700px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+        rgba(0, 0, 0, var(--bright-opacity, 0)) 0%,
+        rgba(0, 0, 0, var(--bright-opacity-60, 0)) 30%,
+        rgba(0, 0, 0, var(--bright-opacity-10, 0)) 65%,
+        rgba(0, 0, 0, 0) 100%
+      ),
+      linear-gradient(
+        105deg,
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) - 20%),
+        rgba(0, 0, 0, var(--wave-opacity, 0)) var(--wave-progress, -20%),
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) + 20%)
+      );
+    -webkit-mask-image: 
+      radial-gradient(
+        700px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+        rgba(0, 0, 0, var(--bright-opacity, 0)) 0%,
+        rgba(0, 0, 0, var(--bright-opacity-60, 0)) 30%,
+        rgba(0, 0, 0, var(--bright-opacity-10, 0)) 65%,
+        rgba(0, 0, 0, 0) 100%
+      ),
+      linear-gradient(
+        105deg,
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) - 20%),
+        rgba(0, 0, 0, var(--wave-opacity, 0)) var(--wave-progress, -20%),
+        rgba(0, 0, 0, 0) calc(var(--wave-progress, -20%) + 20%)
+      );
+  }
+
+  .hero .ribbon {
     position: absolute;
-    top: -12vh;
-    right: -13vw;
-    width: 82vw;
-    height: 190vh;
-    z-index: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-    background: linear-gradient(135deg, #090314 0%, #052b21 50%, #240114 100%);
-    mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      #000 9%,
-      #000 86%,
-      rgba(0, 0, 0, 0.74) 94%,
-      transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      #000 9%,
-      #000 86%,
-      rgba(0, 0, 0, 0.74) 94%,
-      transparent 100%
-    );
+    height: 140%;
+    top: -20%;
+    overflow: hidden;
+    border-radius: 50% 50% 50% 50% / 40% 60% 40% 60%;
+    transform-style: preserve-3d;
+    isolation: isolate;
+    box-shadow:
+      inset -12px 0 36px rgba(0, 0, 0, 0.18),
+      -16px 0 48px rgba(0, 0, 0, 0.12);
+    animation: hero-float 12s ease-in-out infinite alternate;
   }
 
-  /* 亮色模式下的降级背景 */
-  html.theme-preboot-light .hero .hero-fallback-bg,
-  body.light-mode .hero .hero-fallback-bg {
-    background: linear-gradient(135deg, #f3e8ff 0%, #ccfbf1 50%, #fce7f3 100%);
+  .hero .ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    backface-visibility: hidden;
+    background: var(--ribbon-gradient);
   }
 
-  /* 当 WebGL 降级激活时，隐藏 Canvas，显示降级背景 */
-  .hero.webgl-fallback .webgl-hero-container {
-    display: none;
+  .hero:not([data-hero-active]) .ribbon {
+    animation-play-state: paused;
   }
 
-  .hero.webgl-fallback .hero-fallback-bg {
-    opacity: 0.65;
+  .hero[data-hero-active]:not([data-hero-switching]) .mouse-scene,
+  .hero[data-hero-active]:not([data-hero-switching]) .wave-scene {
+    will-change: opacity;
+  }
+
+  .hero .ribbon-1 {
+    width: 35vw;
+    left: 0;
+    z-index: 10;
+    --rz: 5deg;
+    --ry: -15deg;
+    --tz: -100px;
+    --ribbon-gradient: linear-gradient(105deg, #000 0%, #090314 15%, #230d52 35%, #6432c9 47%, #a78aed 49.5%, #ffffff 50.5%, #a78aed 51.5%, #411a91 60%, #0f0529 80%, #000 100%);
+    animation-delay: 0s;
+  }
+
+  .hero .ribbon-2 {
+    width: 40vw;
+    left: 18vw;
+    z-index: 20;
+    --rz: -2deg;
+    --ry: -25deg;
+    --tz: 0px;
+    --ribbon-gradient: linear-gradient(110deg, #000 0%, #02171c 10%, #0a4c5e 30%, #209da8 46%, #8bf2ed 49.5%, #ffffff 50.5%, #8bf2ed 51.5%, #18786e 60%, #052b21 80%, #000 100%);
+    animation-delay: -3s;
+  }
+
+  .hero .ribbon-3 {
+    width: 45vw;
+    left: 40vw;
+    z-index: 30;
+    --rz: -10deg;
+    --ry: -35deg;
+    --tz: 100px;
+    --ribbon-gradient: linear-gradient(115deg, #000 0%, #1f0300 10%, #610f00 25%, #b82c00 42%, #f28d13 48.5%, #ffebb3 50%, #ffffff 50.5%, #ffebb3 51%, #d9660b 58%, #5e1400 80%, #000 100%);
+    animation-delay: -6s;
+  }
+
+  .hero .ribbon-4 {
+    width: 38vw;
+    left: 65vw;
+    z-index: 40;
+    --rz: -18deg;
+    --ry: -45deg;
+    --tz: 200px;
+    --ribbon-gradient: linear-gradient(110deg, #000 0%, #1f0012 10%, #5e0431 30%, #ab1862 46%, #f07ab9 49.5%, #ffffff 50.5%, #f07ab9 51.5%, #8f0e4d 60%, #240114 80%, #000 100%);
+    animation-delay: -9s;
+  }
+
+  html.theme-preboot-light .hero .ribbon-1,
+  body.light-mode .hero .ribbon-1 {
+    --ribbon-gradient: linear-gradient(105deg, var(--bg) 0%, #f3e8ff 15%, #d8b4fe 35%, #9333ea 47%, #ffffff 50.5%, #9333ea 52%, #d8b4fe 65%, #f3e8ff 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-2,
+  body.light-mode .hero .ribbon-2 {
+    --ribbon-gradient: linear-gradient(110deg, var(--bg) 0%, #ccfbf1 15%, #5eead4 35%, #0d9488 47%, #ffffff 50.5%, #0d9488 52%, #5eead4 65%, #ccfbf1 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-3,
+  body.light-mode .hero .ribbon-3 {
+    --ribbon-gradient: linear-gradient(115deg, var(--bg) 0%, #ffedd5 15%, #fdba74 35%, #ea580c 47%, #ffffff 50.5%, #ea580c 52%, #fdba74 65%, #ffedd5 85%, var(--bg) 100%);
+  }
+
+  html.theme-preboot-light .hero .ribbon-4,
+  body.light-mode .hero .ribbon-4 {
+    --ribbon-gradient: linear-gradient(110deg, var(--bg) 0%, #fce7f3 15%, #f9a8d4 35%, #db2777 47%, #ffffff 50.5%, #db2777 52%, #f9a8d4 65%, #fce7f3 85%, var(--bg) 100%);
+  }
+
+  @keyframes hero-float {
+    0% {
+      transform: translateY(0) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg));
+    }
+    100% {
+      transform: translateY(-3vh) rotateZ(var(--rz, 0deg)) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0deg));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero .ribbon {
+      animation: none;
+    }
   }
 
   .hero .hero__shell {
