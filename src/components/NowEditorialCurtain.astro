@@ -10,7 +10,6 @@ interface Props {
 }
 
 const { items } = Astro.props;
-const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
 ---
 
 <section class="section now-editorial" data-now-experience>
@@ -79,42 +78,37 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
             </div>
 
             <div class="now-editorial__detail-body">
-              <h3 class="now-editorial__detail-title">{entry.data.summary}</h3>
+              <h1 class="now-editorial__detail-title">{entry.data.title || "随笔记录"}</h1>
 
               <div class="now-editorial__detail-meta">
                 <div>
-                  <span>Date</span>
+                  <span>Date / 日期</span>
                   <strong>{formatDate(entry.data.date)}</strong>
                 </div>
                 <div>
-                  <span>Type</span>
+                  <span>Type / 类别</span>
                   <strong>DATA LOG</strong>
                 </div>
                 <div>
-                  <span>Mode</span>
+                  <span>Mode / 模式</span>
                   <strong>TRANSMISSION</strong>
                 </div>
                 <div>
-                  <span>Status</span>
-                  <strong>Open</strong>
+                  <span>Status / 状态</span>
+                  <strong>Active / 归档</strong>
                 </div>
-              </div>
-
-              <div
-                class="now-editorial__detail-visual"
-                style={`--tone: ${visualTones[index % visualTones.length]};`}
-              >
-                <span>SIGNAL ACQUIRED // DETAILED VIEW</span>
               </div>
 
               <div class="now-editorial__detail-columns">
                 <div class="now-editorial__detail-lead">
-                  <h4>DECRYPTING THE LATEST TRANSMISSION.</h4>
+                  <div class="now-editorial__lead-card">
+                    <h4 class="now-editorial__lead-heading">INTRODUCTION / 摘要</h4>
+                    <p class="now-editorial__lead-text">{entry.data.summary}</p>
+                  </div>
                 </div>
 
                 <div class="now-editorial__detail-copy">
-                  <p class="now-editorial__detail-summary">{entry.data.summary}</p>
-                  <div class="prose-shell">
+                  <div class="prose-shell now-editorial__prose">
                     <Content />
                   </div>
                 </div>
@@ -361,13 +355,8 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
   }
 
   .now-editorial__curtain {
-    position: fixed;
-    inset: 0;
-    z-index: 220;
-    pointer-events: none;
-    transform: translateY(100%);
-    background: var(--text-primary);
-    transition: transform 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+    /* 彻底注释并隐藏原有的全屏大面积黑色遮罩滑入动画，还原极其清透的高级感 */
+    display: none !important;
   }
 
   .now-editorial__detail-layer {
@@ -380,22 +369,29 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     pointer-events: none;
     background: var(--bg);
     color: var(--text-primary);
-    transition: opacity 0.4s ease;
+    /* 升级：原位微缩放与微平移，创造极奢电影级卡片展开质感 */
+    transform: scale(0.98) translateY(12px);
+    transition: 
+      opacity 480ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .now-editorial[data-state="entering"] .now-editorial__curtain,
   .now-editorial[data-state="open"] .now-editorial__curtain {
-    transform: translateY(0);
+    display: none !important;
   }
 
   .now-editorial[data-state="exiting"] .now-editorial__curtain {
-    transform: translateY(-100%);
+    display: none !important;
   }
 
+  /* 升级：一旦点击进入 entering 阶段，立即触发 480ms 优雅淡入，消灭 520ms 等待卡顿感 */
+  .now-editorial[data-state="entering"] .now-editorial__detail-layer,
   .now-editorial[data-state="open"] .now-editorial__detail-layer {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+    transform: scale(1) translateY(0);
   }
 
   .now-editorial__detail {
@@ -486,98 +482,99 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
   }
 
   .now-editorial__detail-title {
-    margin: 0;
-    max-width: 10ch;
-    font-size: clamp(3.4rem, 9vw, 8.4rem);
-    font-weight: 800;
-    line-height: 0.85;
-    letter-spacing: -0.08em;
+    margin: 0 0 16px;
+    font-size: clamp(2.0rem, 4.5vw, 3.3rem);
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
   }
 
   .now-editorial__detail-meta {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0;
-    margin-top: 32px;
-    padding: 28px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 24px;
+    padding: 22px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
   .now-editorial__detail-meta > div {
     display: grid;
-    gap: 10px;
+    gap: 6px;
   }
 
   .now-editorial__detail-meta > div + div {
     padding-left: 24px;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid var(--border);
+    opacity: 0.85;
   }
 
   .now-editorial__detail-meta span {
     color: var(--text-tertiary);
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.18em;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
   }
 
   .now-editorial__detail-meta strong {
-    font-size: clamp(1rem, 1.8vw, 1.45rem);
+    font-size: clamp(0.9rem, 1.4vw, 1.2rem);
     font-weight: 500;
     line-height: 1.2;
+    color: var(--text-primary);
   }
 
-  .now-editorial__detail-visual {
-    position: relative;
-    margin-top: 28px;
-    aspect-ratio: 21 / 9;
-    overflow: hidden;
-    background: var(--tone);
-  }
-
-  .now-editorial__detail-visual::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0.3;
-    mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  }
-
-  .now-editorial__detail-visual span {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.78rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    mix-blend-mode: difference;
-  }
-
+  /* 电影级书籍式双栏随笔排版 */
   .now-editorial__detail-columns {
     display: grid;
-    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
-    gap: 48px;
-    margin-top: 40px;
+    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+    gap: 56px;
+    margin-top: 36px;
+    align-items: start;
   }
 
-  .now-editorial__detail-lead h4 {
+  /* 左栏无框留白·雅致垂直装饰线导读 */
+  .now-editorial__lead-card {
+    position: sticky;
+    top: 40px;
+    padding-left: 18px;
+    /* 采用自适应 border 的极淡色彩，在左侧衬托一根温润纯净的垂直细线 */
+    border-left: 2px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  }
+
+  .now-editorial__lead-heading {
+    margin: 0 0 10px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__lead-text {
     margin: 0;
-    font-size: clamp(2rem, 3vw, 3rem);
-    line-height: 0.98;
-    letter-spacing: -0.05em;
+    color: var(--text-secondary);
+    font-size: 0.94rem;
+    line-height: 1.65;
+    font-weight: 400;
   }
 
-  .now-editorial__detail-summary {
-    margin: 0 0 20px;
-    color: var(--text-primary);
-    font-size: 1.16rem;
-    line-height: 1.5;
+  /* 右栏专注阅读的随笔排版 */
+  .now-editorial__prose {
+    font-size: 1.05rem;
+    line-height: 1.85;
+    color: var(--text-secondary);
+  }
+
+  .now-editorial__prose :global(p) {
+    margin-bottom: 24px;
+  }
+
+  .now-editorial__prose :global(p:last-child) {
+    margin-bottom: 0;
   }
 
   @media (max-width: 980px) {

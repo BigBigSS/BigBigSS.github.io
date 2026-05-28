@@ -1,0 +1,149 @@
+---
+import { site } from "../../data/site";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title={`Preview · ${site.name}`} description="后台文章实时预览">
+  <section class="section">
+    <div class="copy-shell">
+      <a class="post-back" href="/posts" aria-hidden="true">
+        <span aria-hidden="true">←</span>
+        返回文章列表
+      </a>
+
+      <header class="post-header">
+        <p class="eyebrow">04 / 文章</p>
+        <h1 class="post-header__title" data-preview-title>未命名文章</h1>
+        <p class="post-header__description" data-preview-description></p>
+        <div class="meta-line">
+          <span data-preview-date></span>
+          <span data-preview-tags></span>
+        </div>
+      </header>
+
+      <article class="prose-shell post-body" data-preview-body></article>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .post-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    pointer-events: none;
+  }
+
+  .post-header {
+    margin-top: 28px;
+  }
+
+  .post-header__title {
+    margin: 0;
+    font-size: clamp(2.5rem, 5vw, 4.4rem);
+    line-height: 1.04;
+    letter-spacing: -0.05em;
+  }
+
+  .post-header__description {
+    margin: 18px 0 0;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+  }
+
+  .post-body {
+    margin-top: 42px;
+  }
+
+  .content-image[data-image-index] {
+    cursor: pointer;
+  }
+
+  .content-image.is-selected {
+    outline: 3px solid var(--accent);
+    outline-offset: 6px;
+  }
+</style>
+
+<script>
+  type PreviewPayload = {
+    html?: string;
+    title?: string;
+    description?: string;
+    date?: string;
+    tags?: string;
+    selectedImageIndex?: number | null;
+  };
+
+  const titleEl = document.querySelector<HTMLElement>("[data-preview-title]");
+  const descriptionEl = document.querySelector<HTMLElement>("[data-preview-description]");
+  const dateEl = document.querySelector<HTMLElement>("[data-preview-date]");
+  const tagsEl = document.querySelector<HTMLElement>("[data-preview-tags]");
+  const bodyEl = document.querySelector<HTMLElement>("[data-preview-body]");
+
+  const applyPreview = (payload: PreviewPayload) => {
+    if (titleEl) titleEl.textContent = payload.title || "未命名文章";
+    if (descriptionEl) descriptionEl.textContent = payload.description || "";
+    if (dateEl) dateEl.textContent = payload.date || "";
+    if (tagsEl) tagsEl.textContent = payload.tags || "";
+    if (bodyEl) {
+      bodyEl.innerHTML = payload.html || "";
+      bodyEl.querySelectorAll(".is-selected").forEach((node) => node.classList.remove("is-selected"));
+      if (payload.selectedImageIndex !== null && payload.selectedImageIndex !== undefined) {
+        bodyEl.querySelector(`[data-image-index="${payload.selectedImageIndex}"]`)?.classList.add("is-selected");
+      }
+    }
+  };
+
+  window.addEventListener("message", (event) => {
+    if (event.data?.type === "admin-preview:update") {
+      applyPreview(event.data.payload || {});
+    }
+    if (event.data?.type === "admin-preview:scroll-to") {
+      const scrollRange = document.documentElement.scrollHeight - window.innerHeight;
+      if (scrollRange > 0) window.scrollTo({ top: scrollRange * Number(event.data.ratio || 0) });
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const figure = (event.target as HTMLElement).closest<HTMLElement>("[data-image-index]");
+    if (figure) {
+      event.preventDefault();
+      parent.postMessage(
+        {
+          type: "admin-preview:image-select",
+          index: Number(figure.dataset.imageIndex),
+        },
+        "*",
+      );
+      return;
+    }
+
+    const navigationTarget = (event.target as HTMLElement).closest("a, form button, button[type='submit']");
+    if (navigationTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+
+  document.addEventListener("submit", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+  window.addEventListener("scroll", () => {
+    const scrollRange = document.documentElement.scrollHeight - window.innerHeight;
+    if (scrollRange <= 0) return;
+    parent.postMessage(
+      {
+        type: "admin-preview:scroll",
+        ratio: window.scrollY / scrollRange,
+      },
+      "*",
+    );
+  });
+
+  parent.postMessage({ type: "admin-preview:ready" }, "*");
+</script>

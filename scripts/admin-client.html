@@ -202,14 +202,70 @@
       /* 详情 Modal 双栏布局 */
       .gallery-detail-modal-layout {
         display: grid;
-        grid-template-columns: 1.2fr 1fr;
+        grid-template-columns: 1fr 1.28fr;
         gap: 28px;
-        align-items: start;
+        align-items: stretch;
         text-align: left;
+        height: min(600px, calc(100vh - 160px));
+      }
+      .gallery-detail-modal-layout .inspector-preview-container {
+        height: 100%;
+        margin: 0;
+        cursor: zoom-in;
+      }
+      .gallery-detail-modal-form {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+      }
+      .gallery-detail-form-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      /* 精致微细的 Webkit 滚动条 */
+      .gallery-detail-form-scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+      .gallery-detail-form-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .gallery-detail-form-scroll::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.12);
+        border-radius: 3px;
+      }
+      .gallery-detail-form-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.24);
+      }
+      .gallery-detail-form-footer {
+        margin-top: auto;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        background: #fff;
+        z-index: 10;
       }
       @media (max-width: 768px) {
         .gallery-detail-modal-layout {
           grid-template-columns: 1fr;
+          height: auto;
+          align-items: start;
+        }
+        .gallery-detail-modal-layout .inspector-preview-container {
+          height: 240px;
+        }
+        .gallery-detail-modal-form {
+          height: auto;
+          overflow: visible;
+        }
+        .gallery-detail-form-scroll {
+          overflow-y: visible;
         }
       }
 
@@ -526,12 +582,8 @@
       .gallery-card__overlay {
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.18);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
+        background: rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(2px);
         opacity: 0;
         pointer-events: none;
         transition: var(--apple-transition);
@@ -540,6 +592,11 @@
       .gallery-card:hover .gallery-card__overlay {
         opacity: 1;
         pointer-events: auto;
+      }
+      .gallery-card__overlay .overlay-btn {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
       }
       .overlay-btn {
         width: 34px;
@@ -698,9 +755,6 @@
         margin: 6px 0;
       }
 
-      .gallery-checks { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.02); }
-      .gallery-checks span { color: var(--muted); font-size: 11px; }
-
       .cap-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1000px; }
       .cap-editor textarea { min-height: 380px; }
       .cap-editor .primary { grid-column: 1 / -1; }
@@ -715,31 +769,30 @@
       .editor-page.active { display: grid; grid-template-rows: auto minmax(0, 1fr); }
       .editor-header {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
         gap: 16px;
-        padding: 18px 24px;
+        padding: 10px 16px;
         border-bottom: 1px solid var(--line);
         background: #fff;
       }
-      .editor-header h1 { margin: 0; font-size: 22px; }
+      .editor-header h1 { margin: 0; font-size: 18px; }
+      .editor-header__title {
+        max-width: min(62vw, 920px);
+        overflow: hidden;
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .editor-header__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
       .post-editor {
         display: grid;
-        grid-template-columns: 340px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) minmax(420px, 0.9fr);
         min-height: 0;
         overflow: hidden;
-      }
-
-      .post-meta {
-        overflow: auto;
-        display: grid;
-        align-content: start;
-        gap: 14px;
-        padding: 18px;
-        border-right: 1px solid var(--line);
-        background: #fff;
       }
 
       .field { display: grid; gap: 6px; }
@@ -785,8 +838,6 @@
       }
 
       .body-split {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         height: 100%;
         min-height: 0;
         overflow: hidden;
@@ -803,31 +854,147 @@
         box-shadow: none;
       }
 
-      .live-preview {
-        overflow: auto;
-        padding: 24px;
-        border-left: 1px solid var(--line);
-        background: #fbfaf7;
+      .body-split textarea:disabled,
+      .right-panel input:disabled,
+      .right-panel textarea:disabled,
+      .right-panel select:disabled {
+        color: var(--muted);
+        background: #f8f8f9;
+        cursor: not-allowed;
       }
 
-      .live-preview h1, .live-preview h2, .live-preview h3 { line-height: 1.15; }
-      .live-preview img { max-width: 100%; border-radius: 8px; }
-      .live-preview pre, .live-preview code { background: #f0eee8; }
-      .live-preview pre { overflow: auto; padding: 14px; border-radius: 8px; }
-      .live-preview .content-image { width: 100%; margin-block: 24px; }
-      .live-preview .content-image img { display: block; width: 100%; height: auto; margin: 0; }
-      .live-preview .content-image--w25 { max-width: 25%; }
-      .live-preview .content-image--w33 { max-width: 33%; }
-      .live-preview .content-image--w50 { max-width: 50%; }
-      .live-preview .content-image--w66 { max-width: 66%; }
-      .live-preview .content-image--w100 { max-width: 100%; }
-      .live-preview .content-image--left { margin-right: auto; margin-left: 0; }
-      .live-preview .content-image--center { margin-right: auto; margin-left: auto; }
-      .live-preview .content-image--right { margin-right: 0; margin-left: auto; }
-      .live-preview .content-image[data-image-index] { cursor: pointer; }
-      .live-preview .content-image.is-selected {
-        outline: 3px solid var(--accent);
-        outline-offset: 6px;
+      .preview-side {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border-left: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .live-preview-shell {
+        --preview-scale: 0.56;
+        --preview-scaled-width: 806px;
+        --preview-scaled-height: 454px;
+        min-width: 0;
+        min-height: calc(var(--preview-scaled-height) + 16px);
+        overflow: auto;
+        padding: 8px;
+        background: #0a0b0e;
+      }
+
+      .live-preview-canvas {
+        width: var(--preview-scaled-width);
+        height: var(--preview-scaled-height);
+        margin: 0 auto;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 13px;
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      }
+
+      .live-preview {
+        width: 1280px;
+        height: 720px;
+        display: block;
+        border: 0;
+        border-radius: 12px;
+        background: #0a0b0e;
+        transform: scale(var(--preview-scale));
+        transform-origin: top left;
+      }
+
+      .right-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 10px;
+        max-height: 38vh;
+        overflow: hidden;
+        padding: 10px 14px 14px;
+        border-top: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .right-panel__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding-bottom: 2px;
+      }
+
+      .right-panel__body {
+        min-height: 0;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .right-panel__tabs {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        min-height: 34px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .right-panel__tabs button {
+        position: relative;
+        min-height: 34px;
+        padding: 0 0 8px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .right-panel__tabs button.active {
+        color: var(--accent);
+      }
+
+      .right-panel__tabs button.active::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+
+      .right-panel__actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        white-space: nowrap;
+      }
+
+      .right-panel__actions button {
+        min-height: 32px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+
+      .editor-panel {
+        display: none;
+        gap: 12px;
+      }
+
+      .editor-panel.active {
+        display: grid;
+      }
+
+      .editor-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .editor-form-grid .field--wide {
+        grid-column: 1 / -1;
       }
 
       .modal-root[hidden] { display: none; }
@@ -911,10 +1078,10 @@
       .body-field textarea { min-height: 320px; }
 
       @media (max-width: 1100px) {
-        .app, .post-editor, .body-split, .gallery-workspace, .gallery-uploader, .cap-editor, .form-grid { grid-template-columns: 1fr; }
+        .app, .post-editor, .body-split, .gallery-workspace, .gallery-uploader, .cap-editor, .form-grid, .editor-form-grid { grid-template-columns: 1fr; }
         .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
         .module-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        .live-preview { border-left: 0; border-top: 1px solid var(--line); }
+        .preview-side { border-left: 0; border-top: 1px solid var(--line); }
       }
     </style>
   </head>
@@ -998,10 +1165,6 @@
                     <button data-gallery-filter-btn="image">普通图片</button>
                   </div>
                 </div>
-                <div class="topbar-actions">
-                  <button data-run-gallery-checks>检查素材</button>
-                  <button class="primary" data-save-gallery>保存图片桶</button>
-                </div>
               </div>
               <div class="gallery-grid" data-gallery-list></div>
             </div>
@@ -1023,63 +1186,92 @@
       <header class="editor-header">
         <div>
           <h1 data-editor-title>新增文章</h1>
-          <div class="hint">元信息和正文分开编辑；正文右侧实时预览。</div>
         </div>
-        <div class="editor-header__actions">
-          <button data-back-dashboard>返回列表</button>
-          <button data-open-current-post>打开前台</button>
-          <button class="primary" data-save-post>保存文章</button>
-        </div>
+        <div class="editor-header__title" data-editor-current-title></div>
       </header>
       <form class="post-editor" data-post-form>
-        <aside class="post-meta">
-          <input name="originalId" type="hidden" />
-          <div class="field"><label>标题</label><input name="title" required /></div>
-          <div class="field"><label>Slug</label><input name="id" placeholder="my-note" /></div>
-          <div class="field"><label>日期</label><input name="date" type="date" /></div>
-          <div class="field"><label>描述</label><textarea name="description" rows="4"></textarea></div>
-          <div class="field"><label>标签，逗号分隔</label><input name="tags" placeholder="backend, ai, deploy" /></div>
-          <div class="field"><label>封面图</label><input name="cover" /></div>
-          <div class="image-insert">
-            <strong>插入正文图片</strong>
-            <input data-post-upload type="file" accept="image/*" />
-            <img data-upload-preview hidden alt="" />
-            <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
-            <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
-            <div class="image-insert__row">
-              <div class="field">
-                <label>位置</label>
-                <select data-image-align>
-                  <option value="center">居中</option>
-                  <option value="left">靠左</option>
-                  <option value="right">靠右</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>宽度</label>
-                <select data-image-width>
-                  <option value="100">100%</option>
-                  <option value="66">66%</option>
-                  <option value="50">50%</option>
-                  <option value="33">33%</option>
-                  <option value="25">25%</option>
-                </select>
-              </div>
-            </div>
-            <button type="button" data-use-cover>设为封面</button>
-            <button type="button" data-insert-image>插入到光标位置</button>
-          </div>
-        </aside>
         <section class="body-editor">
           <div class="body-toolbar">
             <strong>正文</strong>
-            <span class="hint">左侧编辑，右侧预览。图片使用站点样式类控制位置和比例。</span>
+            <span class="hint" data-edit-mode-hint>预览状态，点击右上角编辑后可修改。</span>
           </div>
           <div class="body-split">
             <textarea name="body" data-post-body placeholder="正文支持 Markdown / MDX"></textarea>
-            <article class="live-preview" data-live-preview></article>
           </div>
         </section>
+        <aside class="preview-side">
+          <input name="originalId" type="hidden" />
+          <input name="id" type="hidden" />
+          <div class="live-preview-shell" data-live-preview-shell>
+            <div class="live-preview-canvas" data-live-preview-canvas>
+              <iframe class="live-preview" data-live-preview title="文章前端实时预览"></iframe>
+            </div>
+          </div>
+          <section class="right-panel">
+            <div class="right-panel__head">
+              <div class="right-panel__tabs" role="tablist" aria-label="文章工具">
+                <button type="button" class="active" data-post-panel-tab="info">编辑信息</button>
+                <button type="button" data-post-panel-tab="image">插入图片</button>
+              </div>
+              <div class="right-panel__actions">
+                <button type="button" data-back-dashboard>返回列表</button>
+                <button type="button" data-open-current-post>打开前台</button>
+                <button type="button" class="primary" data-start-edit>编辑</button>
+                <button type="button" class="primary" data-save-post hidden>保存</button>
+              </div>
+            </div>
+            <div class="right-panel__body">
+              <div class="editor-panel active" data-post-panel="info">
+                <div class="editor-form-grid">
+                  <div class="field field--wide"><label>标题</label><input name="title" required /></div>
+                  <div class="field field--wide"><label>摘要</label><textarea name="description" rows="3"></textarea></div>
+                  <div class="field"><label>日期</label><input name="date" type="date" /></div>
+                  <div class="field">
+                    <label>状态</label>
+                    <select name="status">
+                      <option value="published">已发布</option>
+                      <option value="draft">草稿</option>
+                      <option value="ai">AI 生成</option>
+                    </select>
+                  </div>
+                  <div class="field field--wide"><label>标签，逗号分隔</label><input name="tags" placeholder="backend, ai, deploy" /></div>
+                  <div class="field field--wide"><label>封面图</label><input name="cover" /></div>
+                </div>
+              </div>
+              <div class="editor-panel" data-post-panel="image">
+                <div class="image-insert">
+                  <strong>插入正文图片</strong>
+                  <input data-post-upload type="file" accept="image/*" />
+                  <img data-upload-preview hidden alt="" />
+                  <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
+                  <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
+                  <div class="image-insert__row">
+                    <div class="field">
+                      <label>位置</label>
+                      <select data-image-align>
+                        <option value="center">居中</option>
+                        <option value="left">靠左</option>
+                        <option value="right">靠右</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>宽度</label>
+                      <select data-image-width>
+                        <option value="100">100%</option>
+                        <option value="66">66%</option>
+                        <option value="50">50%</option>
+                        <option value="33">33%</option>
+                        <option value="25">25%</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="button" data-use-cover>设为封面</button>
+                  <button type="button" data-insert-image>插入到光标位置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </form>
     </section>
 
@@ -1087,60 +1279,81 @@
       <header class="editor-header">
         <div>
           <h1 data-now-editor-title>新增最近</h1>
-          <div class="hint">最近动态也使用独立编辑页，左侧填写基础信息，右侧编写正文并实时预览。</div>
         </div>
-        <div class="editor-header__actions">
-          <button data-back-dashboard>返回列表</button>
-          <button data-open-now>打开前台</button>
-          <button class="primary" data-save-now-page>保存最近</button>
-        </div>
+        <div class="editor-header__title" data-now-current-title></div>
       </header>
       <form class="post-editor" data-now-page-form>
-        <aside class="post-meta">
-          <input name="originalId" type="hidden" />
-          <div class="field"><label>摘要</label><input name="summary" required /></div>
-          <div class="field"><label>ID</label><input name="id" /></div>
-          <div class="field"><label>日期</label><input name="date" type="date" /></div>
-          <div class="field"><label>标题，可选</label><input name="title" /></div>
-          <div class="image-insert">
-            <strong>插入正文图片</strong>
-            <input data-now-upload type="file" accept="image/*" />
-            <img data-upload-preview hidden alt="" />
-            <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
-            <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
-            <div class="image-insert__row">
-              <div class="field">
-                <label>位置</label>
-                <select data-image-align>
-                  <option value="center">居中</option>
-                  <option value="left">靠左</option>
-                  <option value="right">靠右</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>宽度</label>
-                <select data-image-width>
-                  <option value="100">100%</option>
-                  <option value="66">66%</option>
-                  <option value="50">50%</option>
-                  <option value="33">33%</option>
-                  <option value="25">25%</option>
-                </select>
-              </div>
-            </div>
-            <button type="button" data-insert-image>插入到光标位置</button>
-          </div>
-        </aside>
         <section class="body-editor">
           <div class="body-toolbar">
             <strong>正文</strong>
-            <span class="hint">左侧编辑，右侧实时预览；保存后回到最近详情。</span>
+            <span class="hint" data-edit-mode-hint>预览状态，点击右上角编辑后可修改。</span>
           </div>
           <div class="body-split">
             <textarea name="body" data-now-body placeholder="写一条真实的最近状态"></textarea>
-            <article class="live-preview" data-now-preview></article>
           </div>
         </section>
+        <aside class="preview-side">
+          <input name="originalId" type="hidden" />
+          <input name="id" type="hidden" />
+            <div class="live-preview-shell" data-live-preview-shell>
+              <div class="live-preview-canvas" data-live-preview-canvas>
+                <iframe class="live-preview" data-now-preview title="最近前端实时预览"></iframe>
+              </div>
+          </div>
+          <section class="right-panel">
+            <div class="right-panel__head">
+              <div class="right-panel__tabs" role="tablist" aria-label="最近工具">
+                <button type="button" class="active" data-now-panel-tab="info">编辑信息</button>
+                <button type="button" data-now-panel-tab="image">插入图片</button>
+              </div>
+              <div class="right-panel__actions">
+                <button type="button" data-back-dashboard>返回列表</button>
+                <button type="button" data-open-now>打开前台</button>
+                <button type="button" class="primary" data-start-edit>编辑</button>
+                <button type="button" class="primary" data-save-now-page hidden>保存</button>
+              </div>
+            </div>
+            <div class="right-panel__body">
+              <div class="editor-panel active" data-now-panel="info">
+                <div class="editor-form-grid">
+                  <div class="field field--wide"><label>标题，可选</label><input name="title" /></div>
+                  <div class="field field--wide"><label>摘要</label><input name="summary" required /></div>
+                  <div class="field"><label>日期</label><input name="date" type="date" /></div>
+                </div>
+              </div>
+              <div class="editor-panel" data-now-panel="image">
+                <div class="image-insert">
+                  <strong>插入正文图片</strong>
+                  <input data-now-upload type="file" accept="image/*" />
+                  <img data-upload-preview hidden alt="" />
+                  <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
+                  <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
+                  <div class="image-insert__row">
+                    <div class="field">
+                      <label>位置</label>
+                      <select data-image-align>
+                        <option value="center">居中</option>
+                        <option value="left">靠左</option>
+                        <option value="right">靠右</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>宽度</label>
+                      <select data-image-width>
+                        <option value="100">100%</option>
+                        <option value="66">66%</option>
+                        <option value="50">50%</option>
+                        <option value="33">33%</option>
+                        <option value="25">25%</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="button" data-insert-image>插入到光标位置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </form>
     </section>
 
@@ -1163,8 +1376,12 @@
         selectedImageIndex: null,
         selectedGalleryIndex: null,
         selectedGalleryId: "",
-        galleryChecks: {},
         syncingScroll: false,
+        originalEditingItem: null,
+        previewOrigin: "",
+        previewOriginPromise: null,
+        previewDiscovery: null,
+        editorMode: "view",
       };
 
       const moduleMeta = {
@@ -1179,9 +1396,27 @@
       const today = () => new Date().toISOString().slice(0, 10);
       const postForm = $("[data-post-form]");
       const nowPageForm = $("[data-now-page-form]");
+      const previewViewport = { width: 1280, height: 720 };
       const activeEditorRoot = () => $("[data-now-editor-page].active") || $("[data-editor-page].active");
       const activeEditorForm = () => ($("[data-now-editor-page].active") ? nowPageForm : postForm);
       const activeImageControl = (selector) => $(selector, activeEditorRoot() || document);
+      const defaultPreviewOrigin = window.location.protocol === "file:"
+        ? "http://localhost:4321"
+        : `${window.location.protocol}//${window.location.hostname}:4321`;
+      const previewOriginCandidates = () => {
+        const protocol = window.location.protocol === "file:" ? "http:" : window.location.protocol;
+        const host = window.location.hostname || "localhost";
+        const params = new URLSearchParams(window.location.search);
+        return [
+          params.get("previewOrigin"),
+          `${protocol}//${host}:52002`,
+          `${protocol}//${host}:52001`,
+          defaultPreviewOrigin,
+          `${protocol}//${host}:5173`,
+          `${protocol}//${host}:3000`,
+          localStorage.getItem("contentAdminPreviewOrigin"),
+        ].filter((origin, index, list) => origin && origin !== window.location.origin && list.indexOf(origin) === index);
+      };
 
       const status = (message, error = false) => {
         const node = $("[data-status]");
@@ -1282,6 +1517,99 @@
           .join("");
       };
 
+      const resolvePreviewOrigin = async () => {
+        if (state.previewOrigin) return state.previewOrigin;
+        return previewOriginCandidates()[0] || defaultPreviewOrigin;
+      };
+
+      const previewUrl = (origin, type) => `${origin}/content-preview/${type === "now" ? "now" : "post"}`;
+
+      const fitPreviewShell = (shell) => {
+        if (!shell) return;
+        const width = Math.max(320, shell.clientWidth - 16);
+        const availableHeight = Math.max(220, shell.parentElement?.clientHeight ? shell.parentElement.clientHeight - 16 : shell.clientHeight - 16);
+        const scale = Math.min(width / previewViewport.width, availableHeight / previewViewport.height, 1);
+        shell.style.setProperty("--preview-scale", String(scale));
+        shell.style.setProperty("--preview-scaled-width", `${Math.round(previewViewport.width * scale)}px`);
+        shell.style.setProperty("--preview-scaled-height", `${Math.round(previewViewport.height * scale)}px`);
+      };
+
+      const fitPreviewShells = () => {
+        $$("[data-live-preview-shell]").forEach(fitPreviewShell);
+      };
+
+      const ensurePreviewFrame = (frame, origin, type) => {
+        const src = previewUrl(origin, type);
+        if (frame.dataset.previewSrc === src) return;
+        frame.dataset.previewSrc = src;
+        frame.src = src;
+      };
+
+      const sendPreviewPayload = (frame, payload) => {
+        frame.contentWindow?.postMessage(
+          {
+            type: "admin-preview:update",
+            payload: {
+              ...payload,
+              selectedImageIndex: state.selectedImageIndex,
+            },
+          },
+          "*",
+        );
+      };
+
+      const tryNextPreviewOrigin = () => {
+        const discovery = state.previewDiscovery;
+        if (!discovery) return;
+        window.clearTimeout(discovery.timer);
+
+        const origin = discovery.candidates[discovery.index];
+        if (!origin) {
+          status("前端预览页未启动，先启动站点服务后刷新后台", true);
+          return;
+        }
+
+        ensurePreviewFrame(discovery.frame, origin, discovery.type);
+        discovery.index += 1;
+        discovery.timer = window.setTimeout(tryNextPreviewOrigin, 1200);
+      };
+
+      const discoverPreviewOrigin = (frame, type, payload) => {
+        state.previewDiscovery = {
+          frame,
+          type,
+          payload,
+          candidates: previewOriginCandidates(),
+          index: 0,
+          timer: 0,
+        };
+        tryNextPreviewOrigin();
+      };
+
+      const updatePreviewFrame = (frame, type, payload) => {
+        if (!state.previewOrigin) {
+          if (state.previewDiscovery && state.previewDiscovery.frame === frame) {
+            state.previewDiscovery.type = type;
+            state.previewDiscovery.payload = payload;
+            return;
+          }
+          discoverPreviewOrigin(frame, type, payload);
+          return;
+        }
+        ensurePreviewFrame(frame, state.previewOrigin, type);
+        sendPreviewPayload(frame, payload);
+      };
+
+      const scrollPreviewFrame = (frame, ratio) => {
+        frame.contentWindow?.postMessage(
+          {
+            type: "admin-preview:scroll-to",
+            ratio,
+          },
+          "*",
+        );
+      };
+
       const upload = (file) =>
         new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -1329,6 +1657,8 @@
         type: item.type === "live" ? "live" : "image",
         title: item.title || item.alt || item.id || `Gallery ${index + 1}`,
         alt: item.alt || item.title || item.id || `Gallery ${index + 1}`,
+        description: item.description || "",
+        mood: item.mood || "日常",
         enabled: item.enabled !== false,
         featured: Boolean(item.featured),
         order: Number.isFinite(Number(item.order)) ? Number(item.order) : index + 1,
@@ -1365,52 +1695,37 @@
           });
       };
 
-      const inspectImage = (src) =>
-        new Promise((resolve) => {
-          if (!src) return resolve({ ok: false, reason: "缺失" });
-          const image = new Image();
-          image.crossOrigin = "anonymous";
-          image.onload = () => {
-            try {
-              const canvas = document.createElement("canvas");
-              canvas.width = 24;
-              canvas.height = 24;
-              const ctx = canvas.getContext("2d");
-              ctx.drawImage(image, 0, 0, 24, 24);
-              const data = ctx.getImageData(0, 0, 24, 24).data;
-              let total = 0;
-              for (let i = 0; i < data.length; i += 4) total += (data[i] + data[i + 1] + data[i + 2]) / 3;
-              const avg = total / (data.length / 4);
-              resolve({ ok: avg >= 5, reason: avg < 5 ? "疑似黑图" : `正常 ${image.naturalWidth}x${image.naturalHeight}` });
-            } catch (_) {
-              resolve({ ok: true, reason: `${image.naturalWidth}x${image.naturalHeight}` });
-            }
-          };
-          image.onerror = () => resolve({ ok: false, reason: "无法加载" });
-          image.src = `${src}${src.includes("?") ? "&" : "?"}check=${Date.now()}`;
+      const setEditorMode = (mode) => {
+        state.editorMode = mode;
+        const editing = mode === "edit";
+        const root = activeEditorRoot();
+        const form = activeEditorForm();
+        if (!root || !form) return;
+        $$("textarea, input, select", form).forEach((control) => {
+          if (control.name === "originalId" || control.name === "id") return;
+          control.disabled = !editing;
         });
-
-      const inspectVideo = (src) =>
-        new Promise((resolve) => {
-          if (!src) return resolve({ ok: false, reason: "缺失" });
-          const video = document.createElement("video");
-          video.preload = "metadata";
-          video.muted = true;
-          video.onloadedmetadata = () => resolve({
-            ok: true,
-            reason: `${video.videoWidth || "?"}x${video.videoHeight || "?"} ${Number(video.duration || 0).toFixed(1)}s`,
-          });
-          video.onerror = () => resolve({ ok: false, reason: "无法加载" });
-          video.src = `${src}${src.includes("?") ? "&" : "?"}check=${Date.now()}`;
+        $$("[data-insert-image], [data-use-cover]", root).forEach((button) => {
+          button.disabled = !editing;
         });
+        $$("[data-start-edit]", root).forEach((button) => {
+          button.hidden = editing;
+        });
+        $$("[data-save-post], [data-save-now-page]", root).forEach((button) => {
+          button.hidden = !editing;
+        });
+        $$("[data-edit-mode-hint]", root).forEach((node) => {
+          node.textContent = editing ? "编辑状态，保存后会自动回到预览状态。" : "预览状态，点击右上角编辑后可修改。";
+        });
+      };
 
-      const inspectGalleryItem = async (item) => {
-        const [thumb, full, live] = await Promise.all([
-          inspectImage(item.thumbSrc),
-          inspectImage(item.fullSrc),
-          item.type === "live" ? inspectVideo(item.liveVideoSrc) : Promise.resolve({ ok: true, reason: "非实况" }),
-        ]);
-        return { thumb, full, live, ok: thumb.ok && full.ok && live.ok };
+      const showEditorPanel = (kind, panel) => {
+        $$(`[data-${kind}-panel-tab]`).forEach((button) => {
+          button.classList.toggle("active", button.dataset[`${kind}PanelTab`] === panel);
+        });
+        $$(`[data-${kind}-panel]`).forEach((node) => {
+          node.classList.toggle("active", node.dataset[`${kind}Panel`] === panel);
+        });
       };
 
       const navigate = (path) => {
@@ -1455,7 +1770,20 @@
         $("[data-modal-root]").hidden = false;
       };
 
+      const discardGalleryChanges = () => {
+        if (state.originalEditingItem && state.selectedGalleryIndex !== null) {
+          const currentIndex = selectedGalleryIndex();
+          const restoreIndex = currentIndex >= 0 ? currentIndex : state.selectedGalleryIndex;
+          state.gallery[restoreIndex] = state.originalEditingItem;
+          state.selectedGalleryId = state.originalEditingItem.id || "";
+          state.originalEditingItem = null;
+          renderGallery();
+          status("已放弃图片修改");
+        }
+      };
+
       const closeModal = () => {
+        discardGalleryChanges();
         $("[data-modal-root]").hidden = true;
         $("[data-modal-body]").innerHTML = "";
       };
@@ -1555,6 +1883,7 @@
         postForm.elements.description.value = item.description || "";
         postForm.elements.tags.value = Array.isArray(item.tags) ? item.tags.join(", ") : "";
         postForm.elements.cover.value = item.cover || "";
+        postForm.elements.status.value = item.status || (item.draft ? "draft" : "published");
         postForm.elements.body.value = item.body || "";
         state.selectedImageIndex = null;
         $("[data-image-src]", $("[data-editor-page]")).value = "";
@@ -1569,8 +1898,10 @@
         $("[data-dashboard]").style.display = "none";
         $("[data-editor-page]").classList.add("active");
         $("[data-now-editor-page]").classList.remove("active");
-        $("[data-editor-title]").textContent = id ? "编辑文章" : "新增文章";
+        $("[data-editor-title]").textContent = id ? "文章预览" : "新增文章";
+        requestAnimationFrame(fitPreviewShells);
         fillPostForm(item || {});
+        setEditorMode(id ? "view" : "edit");
       };
 
       const showNowEditorRoute = (id = "") => {
@@ -1578,8 +1909,10 @@
         $("[data-dashboard]").style.display = "none";
         $("[data-editor-page]").classList.remove("active");
         $("[data-now-editor-page]").classList.add("active");
-        $("[data-now-editor-title]").textContent = id ? "编辑最近" : "新增最近";
+        $("[data-now-editor-title]").textContent = id ? "最近预览" : "新增最近";
+        requestAnimationFrame(fitPreviewShells);
         fillNowPageForm(item || {});
+        setEditorMode(id ? "view" : "edit");
       };
 
       const showDashboardRoute = () => {
@@ -1612,19 +1945,31 @@
       };
 
       const renderPreview = () => {
-        $("[data-live-preview]").innerHTML = markdown(postForm.elements.body.value);
-        if (state.selectedImageIndex !== null) {
-          $(`[data-image-index="${state.selectedImageIndex}"]`, $("[data-live-preview]"))?.classList.add("is-selected");
-        }
-        syncScroll(postForm.elements.body, $("[data-live-preview]"));
+        const title = postForm.elements.title.value || "未命名文章";
+        const headerTitle = $("[data-editor-current-title]");
+        if (headerTitle) headerTitle.textContent = `--- ${title}`;
+        updatePreviewFrame($("[data-live-preview]"), "post", {
+          html: markdown(postForm.elements.body.value),
+          title,
+          description: postForm.elements.description.value,
+          date: postForm.elements.date.value,
+          tags: postForm.elements.tags.value,
+        });
       };
 
       const renderNowPreview = () => {
-        $("[data-now-preview]").innerHTML = markdown(nowPageForm.elements.body.value);
-        if (state.selectedImageIndex !== null) {
-          $(`[data-image-index="${state.selectedImageIndex}"]`, $("[data-now-preview]"))?.classList.add("is-selected");
-        }
-        syncScroll(nowPageForm.elements.body, $("[data-now-preview]"));
+        const currentId = nowPageForm.elements.originalId.value || nowPageForm.elements.id.value;
+        const nowIndex = state.now.findIndex((entry) => entry.id === currentId);
+        const title = nowPageForm.elements.title?.value || nowPageForm.elements.summary.value || "随笔记录";
+        const headerTitle = $("[data-now-current-title]");
+        if (headerTitle) headerTitle.textContent = `--- ${title}`;
+        updatePreviewFrame($("[data-now-preview]"), "now", {
+          html: markdown(nowPageForm.elements.body.value),
+          title: nowPageForm.elements.title?.value,
+          summary: nowPageForm.elements.summary.value,
+          date: nowPageForm.elements.date.value,
+          archiveIndex: String((nowIndex >= 0 ? nowIndex + 1 : 1)).padStart(2, "0"),
+        });
       };
 
       const syncScroll = (source, target) => {
@@ -1682,10 +2027,11 @@
         if (!payload.id) payload.id = slugify(payload.title);
         await api("/api/admin/posts", { method: "POST", body: JSON.stringify(payload) });
         state.selected.posts = payload.id;
+        postForm.elements.id.value = payload.id;
+        postForm.elements.originalId.value = payload.id;
         await load();
-        status("文章已保存");
-        navigate("/admin");
-        showPostDetail(payload.id);
+        navigate(`/admin/posts/${encodeURIComponent(payload.id)}/edit`);
+        status("保存成功");
       };
 
       const saveNowPage = async () => {
@@ -1693,11 +2039,11 @@
         if (!payload.id) payload.id = payload.date || today();
         await api("/api/admin/now", { method: "POST", body: JSON.stringify(payload) });
         state.selected.now = payload.id;
+        nowPageForm.elements.id.value = payload.id;
+        nowPageForm.elements.originalId.value = payload.id;
         await load();
-        status("最近已保存");
-        navigate("/admin");
-        setModule("now");
-        showNowDetail(payload.id);
+        navigate(`/admin/now/${encodeURIComponent(payload.id)}/edit`);
+        status("保存成功");
       };
 
       const renderGallery = () => {
@@ -1739,6 +2085,9 @@
         const item = selectedGalleryItem();
         if (!item) return;
 
+        // 对当前编辑对象进行深拷贝快照，备用于事务取消时的回退
+        state.originalEditingItem = JSON.parse(JSON.stringify(item));
+
         const previewSrc = escapeHtml(item.fullSrc || item.src || item.thumbSrc);
 
         const html = `
@@ -1755,55 +2104,60 @@
             <div class="gallery-detail-modal-form">
               <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 20px; font-weight: 600; letter-spacing: -0.4px;">图片素材详情</h3>
               
-              <div class="field"><label>标题</label><input data-gallery-edit="title" value="${escapeHtml(item.title || "")}" /></div>
-              <div class="field"><label>Alt 文本</label><input data-gallery-edit="alt" value="${escapeHtml(item.alt || "")}" /></div>
-              
-              <div class="form-grid">
-                <div class="field"><label>ID</label><input data-gallery-edit="id" value="${escapeHtml(item.id || "")}" /></div>
-                <div class="field"><label>排序优先级</label><input data-gallery-edit="order" type="number" value="${escapeHtml(item.order || 0)}" /></div>
-              </div>
-              
-              <div class="inspector-section-divider" style="margin: 20px 0; border-top: 1px solid var(--line);"></div>
-              
-              <div class="form-grid" style="margin-bottom: 20px;">
-                <div class="apple-toggle-wrapper">
-                  <span>启用展示</span>
-                  <label class="apple-switch">
-                    <input data-gallery-edit="enabled" type="checkbox" ${item.enabled !== false ? "checked" : ""} />
-                    <span class="apple-switch-slider"></span>
-                  </label>
+              <!-- 字段弹性滚动区 -->
+              <div class="gallery-detail-form-scroll">
+                <div class="field"><label>标题</label><input data-gallery-edit="title" value="${escapeHtml(item.title || "")}" /></div>
+                <div class="field"><label>Alt 文本</label><input data-gallery-edit="alt" value="${escapeHtml(item.alt || "")}" /></div>
+                <div class="field"><label>描述信息 / 日记叙事 (支持多行)</label><textarea data-gallery-edit="description" rows="3" placeholder="写下关于这张照片的故事，例如：今天天气很好，和hx去了公园，看到了很美的日落..." style="width: 100%; min-height: 72px; font-family: inherit; padding: 10px; resize: vertical; border: 1px solid var(--line); border-radius: var(--apple-control-radius); outline: none; transition: var(--apple-transition);">${escapeHtml(item.description || "")}</textarea></div>
+                
+                <div class="field">
+                  <label>主题心情</label>
+                  <select data-gallery-edit="mood" style="width: 100%; height: 38px; font-family: inherit; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--apple-control-radius); outline: none; background: var(--bg-card); transition: var(--apple-transition); color: var(--text);">
+                    <option value="日常" ${item.mood === "日常" ? "selected" : ""}>💬 日常</option>
+                    <option value="开心" ${item.mood === "开心" ? "selected" : ""}>☀️ 开心</option>
+                    <option value="伤心" ${item.mood === "伤心" ? "selected" : ""}>🌧️ 伤心</option>
+                    <option value="紧张" ${item.mood === "紧张" ? "selected" : ""}>⚡ 紧张</option>
+                    <option value="工作" ${item.mood === "工作" ? "selected" : ""}>💼 工作</option>
+                    <option value="美食" ${item.mood === "美食" ? "selected" : ""}>🍳 美食</option>
+                    <option value="旅行" ${item.mood === "旅行" ? "selected" : ""}>✈️ 旅行</option>
+                    <option value="风景" ${item.mood === "风景" ? "selected" : ""}>⛰️ 风景</option>
+                    <option value="独处" ${item.mood === "独处" ? "selected" : ""}>🍃 独处</option>
+                  </select>
                 </div>
-                <div class="apple-toggle-wrapper">
-                  <span>精选推荐</span>
-                  <label class="apple-switch">
-                    <input data-gallery-edit="featured" type="checkbox" ${item.featured ? "checked" : ""} />
-                    <span class="apple-switch-slider"></span>
-                  </label>
+                
+                <div class="form-grid">
+                  <div class="field"><label>ID</label><input data-gallery-edit="id" value="${escapeHtml(item.id || "")}" /></div>
+                  <div class="field"><label>排序优先级</label><input data-gallery-edit="order" type="number" value="${escapeHtml(item.order || 0)}" /></div>
                 </div>
+                
+                <div class="inspector-section-divider" style="margin: 4px 0; border-top: 1px solid var(--line);"></div>
+                
+                <div class="form-grid" style="margin-bottom: 4px;">
+                  <div class="apple-toggle-wrapper">
+                    <span>启用展示</span>
+                    <label class="apple-switch">
+                      <input data-gallery-edit="enabled" type="checkbox" ${item.enabled !== false ? "checked" : ""} />
+                      <span class="apple-switch-slider"></span>
+                    </label>
+                  </div>
+                  <div class="apple-toggle-wrapper">
+                    <span>精选推荐</span>
+                    <label class="apple-switch">
+                      <input data-gallery-edit="featured" type="checkbox" ${item.featured ? "checked" : ""} />
+                      <span class="apple-switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="inspector-section-divider" style="margin: 4px 0; border-top: 1px solid var(--line);"></div>
+                
+                <div class="field" style="margin-bottom: 12px;"><label>关联文章</label><input data-gallery-edit="post" value="${escapeHtml(item.post || "")}" /></div>
               </div>
               
-              <div class="inspector-section-divider" style="margin: 20px 0; border-top: 1px solid var(--line);"></div>
-              
-              <div class="field"><label>关联文章</label><input data-gallery-edit="post" value="${escapeHtml(item.post || "")}" /></div>
-              
-              <div class="gallery-checks" style="margin-top: 20px; padding: 12px 14px; background: var(--bg); border-radius: 10px; font-size: 11px; color: var(--muted); line-height: 1.6; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line);">
-                <div style="font-weight: 500; color: var(--text); margin-bottom: 4px;">📂 素材完整性检查</div>
-                <span>缩略图：${escapeHtml(item.thumbSrc || "缺失")}</span>
-                <span>网站图：${escapeHtml(item.fullSrc || "缺失")}</span>
-                ${item.type === "live" ? `<span>实况视频：${escapeHtml(item.liveVideoSrc || "缺失")}</span>` : ""}
-                ${
-                  state.galleryChecks[item.id]
-                    ? `<div style="margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 6px;"></div>
-                       <span style="font-weight: 500; color: ${state.galleryChecks[item.id].ok ? "var(--apple-green)" : "var(--apple-red)"}">状态：${state.galleryChecks[item.id].ok ? "通过" : "异常"}</span>
-                       <span>缩略图：${escapeHtml(state.galleryChecks[item.id].thumb.reason)}</span>
-                       <span>网站图：${escapeHtml(state.galleryChecks[item.id].full.reason)}</span>
-                       ${item.type === "live" ? `<span>实况：${escapeHtml(state.galleryChecks[item.id].live.reason)}</span>` : ""}`
-                    : ""
-                }
-              </div>
-              
-              <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-                <button class="primary" data-close-modal style="min-width: 90px;">完成</button>
+              <!-- 粘性固定页脚：即时完全可见，无需滚动 -->
+              <div class="gallery-detail-form-footer">
+                <button class="ghost" data-gallery-action="cancel" style="min-width: 90px;">取消</button>
+                <button class="primary" data-gallery-action="save" style="min-width: 90px;">保存图片</button>
               </div>
             </div>
           </div>
@@ -1869,6 +2223,39 @@
         if (event.target.closest("[data-new-post]")) navigate("/admin/posts/new");
         if (event.target.closest("[data-new-now]")) navigate("/admin/now/new");
         if (event.target.closest("[data-back-dashboard]")) navigate("/admin");
+        if (event.target.closest("[data-start-edit]")) {
+          setEditorMode("edit");
+        }
+        if (event.target.closest("[data-save-post]")) {
+          await savePost();
+        }
+        if (event.target.closest("[data-save-now-page]")) {
+          await saveNowPage();
+        }
+        const postPanelTab = event.target.closest("[data-post-panel-tab]");
+        if (postPanelTab) showEditorPanel("post", postPanelTab.dataset.postPanelTab);
+        const nowPanelTab = event.target.closest("[data-now-panel-tab]");
+        if (nowPanelTab) showEditorPanel("now", nowPanelTab.dataset.nowPanelTab);
+        if (event.target.closest("[data-use-cover]")) {
+          const src = activeImageControl("[data-image-src]")?.value?.trim();
+          if (src && activeEditorForm() === postForm) {
+            postForm.elements.cover.value = src;
+            renderPreview();
+          }
+        }
+        if (event.target.closest("[data-insert-image]")) {
+          if (state.editorMode !== "edit") return;
+          const snippet = imageSnippet();
+          if (!snippet) return;
+          const body = activeEditorForm().elements.body;
+          const start = body.selectionStart ?? body.value.length;
+          const end = body.selectionEnd ?? body.value.length;
+          body.value = `${body.value.slice(0, start)}${snippet}${body.value.slice(end)}`;
+          body.focus();
+          body.setSelectionRange(start + snippet.length, start + snippet.length);
+          if (activeEditorForm() === nowPageForm) renderNowPreview();
+          else renderPreview();
+        }
         if (event.target.closest("[data-edit-post]") && state.selected.posts) {
           closeModal();
           navigate(`/admin/posts/${encodeURIComponent(state.selected.posts)}/edit`);
@@ -1879,18 +2266,24 @@
         }
 
         const pick = event.target.closest("[data-pick]");
-        if (pick?.dataset.pick === "posts") showPostDetail(pick.dataset.id);
-        if (pick?.dataset.pick === "now") showNowDetail(pick.dataset.id);
+        if (pick?.dataset.pick === "posts") navigate(`/admin/posts/${encodeURIComponent(pick.dataset.id)}/edit`);
+        if (pick?.dataset.pick === "now") navigate(`/admin/now/${encodeURIComponent(pick.dataset.id)}/edit`);
 
         if (event.target.closest("[data-open-post]")) {
           const id = state.selected.posts || postForm.elements.id.value;
-          if (id) window.open(`http://localhost:52001/posts/${id}`, "_blank");
+          if (id) {
+            void resolvePreviewOrigin().then((origin) => window.open(`${origin}/posts/${id}`, "_blank"));
+          }
         }
         if (event.target.closest("[data-open-current-post]")) {
           const id = postForm.elements.id.value;
-          if (id) window.open(`http://localhost:52001/posts/${id}`, "_blank");
+          if (id) {
+            void resolvePreviewOrigin().then((origin) => window.open(`${origin}/posts/${id}`, "_blank"));
+          }
         }
-        if (event.target.closest("[data-open-now]")) window.open("http://localhost:52001/now", "_blank");
+        if (event.target.closest("[data-open-now]")) {
+          void resolvePreviewOrigin().then((origin) => window.open(`${origin}/now`, "_blank"));
+        }
 
         if (event.target.closest("[data-delete-post]")) {
           const id = state.selected.posts;
@@ -1932,30 +2325,45 @@
           if (removed?.id === state.selectedGalleryId) state.selectedGalleryId = "";
           state.selectedGalleryIndex = null;
           renderGallery();
-          status("图片桶有未保存修改");
+          
+          try {
+            status("正在从数据库移除...");
+            state.gallery = state.gallery.map(normalizeGalleryItem);
+            await api("/api/admin/gallery", { method: "POST", body: JSON.stringify({ items: state.gallery }) });
+            status("图片已成功移除");
+            await load({ keepRoute: true });
+          } catch (err) {
+            status(`移除失败: ${err.message}`, true);
+          }
         }
 
+        const saveActionBtn = event.target.closest("[data-gallery-action='save']");
+        if (saveActionBtn) {
+          try {
+            status("正在保存图片修改...");
+            refreshGalleryOrder();
+            state.gallery = state.gallery.map(normalizeGalleryItem);
+            await api("/api/admin/gallery", { method: "POST", body: JSON.stringify({ items: state.gallery }) });
+            status("图片修改已成功保存");
+            state.originalEditingItem = null; // 标志为保存成功，清除快照缓存以防触发回退
+            closeModal();
+            await load({ keepRoute: true });
+          } catch (err) {
+            status(`保存失败: ${err.message}`, true);
+          }
+        }
 
-        
+        const cancelActionBtn = event.target.closest("[data-gallery-action='cancel']");
+        if (cancelActionBtn) {
+          closeModal();
+        }
+
         const filterBtn = event.target.closest("[data-gallery-filter-btn]");
         if (filterBtn) {
           $$("[data-gallery-filter-btn]").forEach((btn) => btn.classList.remove("active"));
           filterBtn.classList.add("active");
           state.galleryFilter = filterBtn.dataset.galleryFilterBtn;
           renderGallery();
-        }
-
-        if (event.target.closest("[data-run-gallery-checks]")) {
-          status("正在检查图片桶素材...");
-          const results = await Promise.all(
-            state.gallery.map(async (item) => [item.id, await inspectGalleryItem(item)])
-          );
-          state.galleryChecks = Object.fromEntries(results);
-          const failed = results.filter(([, result]) => !result.ok);
-          if (selectedGalleryItem()) {
-            showGalleryDetailModal();
-          }
-          status(failed.length ? `发现 ${failed.length} 个素材异常` : "素材检查通过");
         }
       });
 
@@ -1965,9 +2373,24 @@
         if (event.target === postForm.elements.title && !postForm.elements.id.value) {
           postForm.elements.id.value = slugify(event.target.value);
         }
+        if (
+          event.target === postForm.elements.title ||
+          event.target === postForm.elements.description ||
+          event.target === postForm.elements.date ||
+          event.target === postForm.elements.tags
+        ) {
+          renderPreview();
+        }
         if (event.target === postForm.elements.body) renderPreview();
         if (event.target === nowPageForm.elements.summary && !nowPageForm.elements.id.value) {
           nowPageForm.elements.id.value = today();
+        }
+        if (
+          event.target === nowPageForm.elements.title ||
+          event.target === nowPageForm.elements.summary ||
+          event.target === nowPageForm.elements.date
+        ) {
+          renderNowPreview();
         }
         if (event.target === nowPageForm.elements.body) renderNowPreview();
         if (
@@ -2100,13 +2523,7 @@
         }
       });
 
-      $("[data-save-gallery]").addEventListener("click", async () => {
-        refreshGalleryOrder();
-        state.gallery = state.gallery.map(normalizeGalleryItem);
-        await api("/api/admin/gallery", { method: "POST", body: JSON.stringify({ items: state.gallery }) });
-        status("图片桶已保存");
-        await load({ keepRoute: true });
-      });
+
 
       $("[data-save-capabilities]").addEventListener("click", async () => {
         await api("/api/admin/capabilities", {
@@ -2155,11 +2572,56 @@
         });
       };
 
+      const previewResizeObserver = new ResizeObserver((entries) => {
+        entries.forEach((entry) => fitPreviewShell(entry.target));
+      });
+      $$("[data-live-preview-shell]").forEach((shell) => {
+        fitPreviewShell(shell);
+        previewResizeObserver.observe(shell);
+      });
+
       window.addEventListener("popstate", route);
-      postForm.elements.body.addEventListener("scroll", () => syncScroll(postForm.elements.body, $("[data-live-preview]")));
-      $("[data-live-preview]").addEventListener("scroll", () => syncScroll($("[data-live-preview]"), postForm.elements.body));
-      nowPageForm.elements.body.addEventListener("scroll", () => syncScroll(nowPageForm.elements.body, $("[data-now-preview]")));
-      $("[data-now-preview]").addEventListener("scroll", () => syncScroll($("[data-now-preview]"), nowPageForm.elements.body));
+      postForm.elements.body.addEventListener("scroll", () => {
+        if (state.syncingScroll) return;
+        const range = postForm.elements.body.scrollHeight - postForm.elements.body.clientHeight;
+        if (range > 0) scrollPreviewFrame($("[data-live-preview]"), postForm.elements.body.scrollTop / range);
+      });
+      nowPageForm.elements.body.addEventListener("scroll", () => {
+        if (state.syncingScroll) return;
+        const range = nowPageForm.elements.body.scrollHeight - nowPageForm.elements.body.clientHeight;
+        if (range > 0) scrollPreviewFrame($("[data-now-preview]"), nowPageForm.elements.body.scrollTop / range);
+      });
+      window.addEventListener("message", (event) => {
+        const fromPostPreview = event.source === $("[data-live-preview]")?.contentWindow;
+        const fromNowPreview = event.source === $("[data-now-preview]")?.contentWindow;
+        if (!fromPostPreview && !fromNowPreview) return;
+        if (event.data?.type === "admin-preview:ready") {
+          state.previewOrigin = event.origin;
+          localStorage.setItem("contentAdminPreviewOrigin", event.origin);
+          if (state.previewDiscovery) {
+            window.clearTimeout(state.previewDiscovery.timer);
+            const { frame, payload } = state.previewDiscovery;
+            state.previewDiscovery = null;
+            sendPreviewPayload(frame, payload);
+            return;
+          }
+          if ($("[data-editor-page].active")) renderPreview();
+          if ($("[data-now-editor-page].active")) renderNowPreview();
+        }
+        if (event.data?.type === "admin-preview:image-select") {
+          selectPreviewImage(Number(event.data.index));
+        }
+        if (event.data?.type === "admin-preview:scroll") {
+          const body = activeEditorForm().elements.body;
+          const range = body.scrollHeight - body.clientHeight;
+          if (range <= 0 || state.syncingScroll) return;
+          state.syncingScroll = true;
+          body.scrollTop = range * Number(event.data.ratio || 0);
+          requestAnimationFrame(() => {
+            state.syncingScroll = false;
+          });
+        }
+      });
       load({ keepRoute: true })
         .then(() => {
           bindDragDrop();

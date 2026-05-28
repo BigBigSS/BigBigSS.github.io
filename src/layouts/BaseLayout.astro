@@ -2,7 +2,9 @@
 import Footer from "../components/Footer.astro";
 import NavBar from "../components/NavBar.astro";
 import { site } from "../data/site";
+import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
+
 
 interface Props {
   title?: string;
@@ -45,6 +47,7 @@ const preloadList = [...new Set(preloadImages)].slice(0, 12);
         } catch (_) {}
       })();
     </script>
+    <ClientRouter />
   </head>
   <body class:list={[]}>
     <a class="skip-link" href="#content">跳到正文</a>
@@ -71,117 +74,174 @@ const preloadList = [...new Set(preloadImages)].slice(0, 12);
     <Footer />
 
     <script>
-      const htmlEl = document.documentElement;
-      const body = document.body;
-      const btn = document.getElementById("theme-btn");
-      const globalWindow = window as typeof window & {
-        __siteScrollCleanup?: () => void;
-      };
-      const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const viewTransitionDoc = document as Document & {
-        startViewTransition?: (callback: () => void) => {
-          finished: Promise<void>;
+      const initThemeAndEvents = () => {
+        const htmlEl = document.documentElement;
+        const body = document.body;
+        const btn = document.getElementById("theme-btn");
+        const globalWindow = window as typeof window & {
+          __siteScrollCleanup?: () => void;
         };
-      };
-      let themeSwitchTimer = 0;
+        const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const viewTransitionDoc = document as Document & {
+          startViewTransition?: (callback: () => void) => {
+            finished: Promise<void>;
+          };
+        };
+        let themeSwitchTimer = 0;
 
-      if (htmlEl.classList.contains("theme-preboot-light")) {
-        body.classList.add("light-mode");
-        htmlEl.classList.remove("theme-preboot-light");
-      }
+        // 重新同步当前新页面的 body 与 html 标签主题 class 配色状态
+        try {
+          const savedTheme = localStorage.getItem("theme");
+          const hasPrebootLight = htmlEl.classList.contains("theme-preboot-light");
+          if (savedTheme === "light" || hasPrebootLight) {
+            body.classList.add("light-mode");
+            htmlEl.classList.add("light-mode");
+            htmlEl.classList.remove("theme-preboot-light");
+          } else {
+            body.classList.remove("light-mode");
+            htmlEl.classList.remove("light-mode");
+          }
+        } catch (_) {}
 
-      const broadcast = (name: string, detail?: Record<string, string>) => {
-        window.dispatchEvent(
-          new CustomEvent(name, {
-            detail,
-          })
-        );
-      };
+        const broadcast = (name: string, detail?: Record<string, string>) => {
+          window.dispatchEvent(
+            new CustomEvent(name, {
+              detail,
+            })
+          );
+        };
 
-      const finishThemeSwitching = () => {
-        if (themeSwitchTimer) {
-          window.clearTimeout(themeSwitchTimer);
-          themeSwitchTimer = 0;
-        }
-        if (!body.classList.contains("theme-switching")) return;
-        body.classList.remove("theme-switching");
-        broadcast("theme-switch-end", {
-          mode: body.classList.contains("light-mode") ? "light" : "dark",
-        });
-      };
-
-      const markThemeSwitching = () => {
-        if (!body.classList.contains("theme-switching")) {
-          body.classList.add("theme-switching");
-          broadcast("theme-switch-start", {
+        const finishThemeSwitching = () => {
+          if (themeSwitchTimer) {
+            window.clearTimeout(themeSwitchTimer);
+            themeSwitchTimer = 0;
+          }
+          if (!body.classList.contains("theme-switching")) return;
+          body.classList.remove("theme-switching");
+          broadcast("theme-switch-end", {
             mode: body.classList.contains("light-mode") ? "light" : "dark",
           });
-        }
-        if (themeSwitchTimer) {
-          window.clearTimeout(themeSwitchTimer);
-        }
-        themeSwitchTimer = window.setTimeout(() => {
-          finishThemeSwitching();
-        }, 520);
-      };
-
-      const applyTheme = (nextMode: "light" | "dark") => {
-        body.classList.toggle("light-mode", nextMode === "light");
-        broadcast("theme-change", { mode: nextMode });
-        try {
-          localStorage.setItem("theme", nextMode);
-        } catch (_) {}
-      };
-
-      btn?.addEventListener("click", (e) => {
-        const nextMode = body.classList.contains("light-mode") ? "dark" : "light";
-        btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
-        void btn.offsetWidth;
-        btn.classList.add("is-transitioning", `is-to-${nextMode}`);
-        window.setTimeout(() => {
-          btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
-        }, 520);
-        let didCommitTheme = false;
-        const commitTheme = () => {
-          if (didCommitTheme) return;
-          didCommitTheme = true;
-          markThemeSwitching();
-          applyTheme(nextMode);
         };
 
-        if (viewTransitionDoc.startViewTransition && !reducedMotionQuery.matches) {
-          htmlEl.style.setProperty("--click-x", `${e.clientX}px`);
-          htmlEl.style.setProperty("--click-y", `${e.clientY}px`);
-          htmlEl.classList.add("is-view-transitioning");
-
-          try {
-            const transition = viewTransitionDoc.startViewTransition(() => {
-              commitTheme();
+        const markThemeSwitching = () => {
+          if (!body.classList.contains("theme-switching")) {
+            body.classList.add("theme-switching");
+            broadcast("theme-switch-start", {
+              mode: body.classList.contains("light-mode") ? "light" : "dark",
             });
-            window.setTimeout(() => {
-              commitTheme();
-            }, 80);
-            transition.finished.catch(() => {
-              commitTheme();
-            }).finally(() => {
-              htmlEl.classList.remove("is-view-transitioning");
-              finishThemeSwitching();
-            });
-            return;
-          } catch {
-            htmlEl.classList.remove("is-view-transitioning");
           }
+          if (themeSwitchTimer) {
+            window.clearTimeout(themeSwitchTimer);
+          }
+          themeSwitchTimer = window.setTimeout(() => {
+            finishThemeSwitching();
+          }, 520);
+        };
+
+        const applyTheme = (nextMode: "light" | "dark") => {
+          body.classList.toggle("light-mode", nextMode === "light");
+          htmlEl.classList.toggle("light-mode", nextMode === "light");
+          broadcast("theme-change", { mode: nextMode });
+          try {
+            localStorage.setItem("theme", nextMode);
+          } catch (_) {}
+        };
+
+        btn?.addEventListener("click", (e) => {
+          const nextMode = body.classList.contains("light-mode") ? "dark" : "light";
+          btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+          void btn.offsetWidth;
+          btn.classList.add("is-transitioning", `is-to-${nextMode}`);
+          window.setTimeout(() => {
+            btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+          }, 520);
+          let didCommitTheme = false;
+          const commitTheme = () => {
+            if (didCommitTheme) return;
+            didCommitTheme = true;
+            markThemeSwitching();
+            applyTheme(nextMode);
+          };
+
+          if (viewTransitionDoc.startViewTransition && !reducedMotionQuery.matches) {
+            htmlEl.style.setProperty("--click-x", `${e.clientX}px`);
+            htmlEl.style.setProperty("--click-y", `${e.clientY}px`);
+            htmlEl.classList.add("is-view-transitioning");
+
+            try {
+              const transition = viewTransitionDoc.startViewTransition(() => {
+                commitTheme();
+              });
+              window.setTimeout(() => {
+                commitTheme();
+              }, 80);
+              transition.finished.catch(() => {
+                commitTheme();
+              }).finally(() => {
+                htmlEl.classList.remove("is-view-transitioning");
+                finishThemeSwitching();
+              });
+              return;
+            } catch {
+              htmlEl.classList.remove("is-view-transitioning");
+            }
+          }
+
+          commitTheme();
+        });
+
+        btn?.addEventListener("animationend", () => {
+          btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
+        });
+
+        globalWindow.__siteScrollCleanup?.();
+        globalWindow.__siteScrollCleanup = () => {};
+        console.log("[Antigravity VT] BaseLayout 主题与事件挂载完成！当前路径:", window.location.href);
+      };
+
+      // 注册到 Astro page-load 事件，兼容客户端路由器页面切换生命周期
+      document.addEventListener("astro:page-load", initThemeAndEvents);
+
+      // 全局记忆列表页滚动高度的常驻锁，用于在物理隔离图层期间将全局滚动条强制焊接在原位
+      (window as any).__savedScrollY = (window as any).__savedScrollY || 0;
+
+      // 1. 在准备跳转前，若当前位于列表页，精准记录最新滚动坐标
+      document.addEventListener("astro:before-preparation", () => {
+        document.documentElement.style.scrollBehavior = "auto";
+        
+        const currentPath = window.location.pathname;
+        if (currentPath === "/posts" || currentPath === "/posts/") {
+          (window as any).__savedScrollY = window.scrollY || document.documentElement.scrollTop;
         }
-
-        commitTheme();
       });
 
-      btn?.addEventListener("animationend", () => {
-        btn.classList.remove("is-transitioning", "is-to-light", "is-to-dark");
-      });
+      // 2. 物理级恒定静止：在 DOM 新旧树交换完毕的第一微秒，瞬间同步对齐全局滚动坐标为离开列表时的位置！
+      // 由于详情页全屏遮罩是固定的独立滚动层（scrollTop 天然为 0），这能从物理机制上确保全局滚动坐标一像素都不改变，
+      // 彻底消灭全局置顶和高度还原造成的重绘闪烁，百分之百实现“列表页绝对原位静止，滚动条位置未变”的殿堂级视界！
+      document.addEventListener("astro:after-swap", () => {
+        document.documentElement.style.scrollBehavior = "auto";
+        
+        // A. 原地对齐全局滚动条高度
+        const restoreY = (window as any).__savedScrollY || 0;
+        window.scrollTo(0, restoreY);
 
-      globalWindow.__siteScrollCleanup?.();
-      globalWindow.__siteScrollCleanup = () => {};
+        // B. 核心秒杀：在 DOM 交换完毕的第一微秒，同步将本地 localStorage 中的主题状态应用到最新的 html 和 body 上！
+        // 这能确保在 View Transition 过渡动画开始前，亮色模式（light-mode）就已经挂载到 html 和 body 上！
+        // 彻底根除在亮色模式下转场时由于 body/html class 尚未挂载导致的“一瞬间黑色遮罩”和加载刷新闪烁！
+        try {
+          const body = document.body;
+          const htmlEl = document.documentElement;
+          const savedTheme = localStorage.getItem("theme");
+          const hasPrebootLight = htmlEl.classList.contains("theme-preboot-light");
+          if (savedTheme === "light" || hasPrebootLight) {
+            body.classList.add("light-mode");
+            htmlEl.classList.add("light-mode");
+          } else {
+            body.classList.remove("light-mode");
+            htmlEl.classList.remove("light-mode");
+          }
+        } catch (_) {}
+      });
     </script>
   </body>
 </html>

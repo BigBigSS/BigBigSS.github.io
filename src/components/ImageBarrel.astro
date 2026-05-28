@@ -7,16 +7,35 @@ interface Props {
 
 const { items } = Astro.props;
 const CARD_COUNT = 44;
-const fallbackItems = Array.from({ length: CARD_COUNT }, (_, i) => ({
+
+type BarrelGalleryItem = {
+  src?: string;
+  thumbSrc?: string;
+  fullSrc?: string;
+  liveVideoSrc?: string;
+  originalVideoSrc?: string;
+  alt?: string;
+  title?: string;
+  description?: string;
+  mood?: string;
+  post?: string | null;
+  tone?: string;
+  type?: "image" | "live";
+};
+
+const fallbackItems: BarrelGalleryItem[] = Array.from({ length: CARD_COUNT }, (_, i) => ({
   src: `https://picsum.photos/seed/${i + 200}/800/800`,
   thumbSrc: `https://picsum.photos/seed/${i + 200}/800/800`,
   fullSrc: `https://picsum.photos/seed/${i + 200}/1200/1200`,
   alt: `Gallery image ${i + 1}`,
+  title: `Gallery image ${i + 1}`,
+  description: "",
+  mood: "日常",
   post: null,
   tone: "any",
   type: "image",
 }));
-const cardItems = items.length
+const cardItems: BarrelGalleryItem[] = items.length
   ? Array.from({ length: CARD_COUNT }, (_, i) => {
       const item = items[i % items.length];
       return {
@@ -26,6 +45,9 @@ const cardItems = items.length
         liveVideoSrc: item.liveVideoSrc,
         originalVideoSrc: item.originalVideoSrc,
         alt: item.alt,
+        title: item.title,
+        description: item.description,
+        mood: item.mood || "日常",
         type: item.type,
       };
     })
@@ -35,6 +57,17 @@ const cardItems = items.length
 <section class="barrel3d" id="gallery">
   <p class="barrel3d__eyebrow">06 / MY LIFE</p>
   <div class="barrel3d__stage" data-barrel3d data-items={JSON.stringify(cardItems)}></div>
+  
+  <div class="barrel3d__journal-overlay" data-barrel3d-journal-overlay>
+    <div class="barrel3d__journal-card">
+      <div class="journal-card__header-row">
+        <div class="journal-card__eyebrow">MEMORY JOURNAL</div>
+        <div class="journal-card__mood-badge" data-journal-mood></div>
+      </div>
+      <h4 class="journal-card__title" data-journal-title></h4>
+      <p class="journal-card__desc" data-journal-desc></p>
+    </div>
+  </div>
 </section>
 
 <script>
@@ -80,6 +113,9 @@ const cardItems = items.length
       liveVideoSrc?: string;
       originalVideoSrc?: string;
       alt?: string;
+      title?: string;
+      description?: string;
+      mood?: string;
       type?: string;
     }> = [];
     try {
@@ -184,6 +220,7 @@ const cardItems = items.length
       baseTheta: number;
       baseW: number;
       baseH: number;
+      thumbAspect: number | null;
       fullAspect: number | null;
       thumbTexture: import("three").Texture | null;
       fullTexture: import("three").Texture | null;
@@ -198,6 +235,9 @@ const cardItems = items.length
       group: import("three").Group;
       backMat: import("three").Material & { opacity: number };
       picMat: import("three").MeshBasicMaterial;
+      description: string;
+      title: string;
+      mood: string;
     }> = [];
     const hitTargets: import("three").Object3D[] = [];
     const geometries: import("three").BufferGeometry[] = [];
@@ -328,6 +368,7 @@ const cardItems = items.length
         baseTheta,
         baseW: w,
         baseH: h,
+        thumbAspect: null as number | null,
         fullAspect: null as number | null,
         thumbTexture: null as import("three").Texture | null,
         fullTexture: null as import("three").Texture | null,
@@ -342,6 +383,9 @@ const cardItems = items.length
         group: cardGroup,
         backMat,
         picMat,
+        description: cardItems[i]?.description || "",
+        title: cardItems[i]?.title || cardItems[i]?.alt || "",
+        mood: cardItems[i]?.mood || "日常",
       };
       cards.push(cardRecord);
       hitTargets.push(picMesh, backMesh);
@@ -370,7 +414,11 @@ const cardItems = items.length
             texture.minFilter = THREE.LinearMipmapLinearFilter;
             texture.magFilter = THREE.LinearFilter;
             if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
-            fitTextureCover(texture, w / h);
+            
+            const imgAspect = imageAspectFromTexture(texture);
+            cardRecord.thumbAspect = imgAspect;
+            fitTextureCover(texture, imgAspect);
+            
             loadedTextures.push(texture);
             cardRecord.thumbTexture = texture;
             picMat.map = texture;
@@ -548,6 +596,29 @@ const cardItems = items.length
       );
     };
 
+    const journalOverlay = sectionRoot.querySelector<HTMLElement>("[data-barrel3d-journal-overlay]");
+    const journalTitle = sectionRoot.querySelector<HTMLElement>("[data-journal-title]");
+    const journalDesc = sectionRoot.querySelector<HTMLElement>("[data-journal-desc]");
+    const journalMood = sectionRoot.querySelector<HTMLElement>("[data-journal-mood]");
+
+    const isAutoTitle = (t: string) => {
+      if (!t) return true;
+      // 过滤 IMG 3973, img-3973, dsc_1245, 008ed08a71cd02a27b3b2ba97adb4de3 等文件名或哈希值
+      return /^(img|dsc)[-_ ]?\d+$/i.test(t) || /^[0-9a-f]{32}$/i.test(t);
+    };
+
+    const moodEmojis: Record<string, string> = {
+      "日常": "💬 日常",
+      "开心": "☀️ 开心",
+      "伤心": "🌧️ 伤心",
+      "紧张": "⚡ 紧张",
+      "工作": "💼 工作",
+      "美食": "🍳 美食",
+      "旅行": "✈️ 旅行",
+      "风景": "⛰️ 风景",
+      "独处": "🍃 独处",
+    };
+
     const setFocusedCard = (targetId: number | null) => {
       const previousId = state.focusedId;
       state.focusedId = targetId;
@@ -565,7 +636,32 @@ const cardItems = items.length
         if (target) {
           loadFullTexture(target);
           if (cardItems[target.id]?.type === "live") void playLiveTexture(target);
+          
+          if (target.description) {
+            if (journalDesc) journalDesc.textContent = target.description;
+            
+            // 智能过滤无意义标题
+            if (journalTitle) {
+              if (isAutoTitle(target.title)) {
+                journalTitle.style.display = "none";
+              } else {
+                journalTitle.style.display = "block";
+                journalTitle.textContent = target.title;
+              }
+            }
+
+            // 渲染心情徽章
+            if (journalMood) {
+              journalMood.textContent = moodEmojis[target.mood] || `💬 ${target.mood || "日常"}`;
+            }
+
+            journalOverlay?.classList.add("active");
+          } else {
+            journalOverlay?.classList.remove("active");
+          }
         }
+      } else {
+        journalOverlay?.classList.remove("active");
       }
     };
 
@@ -635,12 +731,20 @@ const cardItems = items.length
       }
     };
 
+    const onJournalOverlayClick = (e: MouseEvent) => {
+      const cardEl = journalOverlay?.querySelector(".barrel3d__journal-card");
+      if (cardEl && !cardEl.contains(e.target as Node)) {
+        setFocusedCard(null);
+      }
+    };
+
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
     canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("click", onClick);
+    journalOverlay?.addEventListener("click", onJournalOverlayClick);
 
     const onResize = () => {
       const { w, h } = getSize();
@@ -716,12 +820,32 @@ const cardItems = items.length
         let tx: number, ty: number, tz: number, trY: number, targetScaleX: number, targetScaleY: number, targetOpacity: number;
 
         if (isFocused) {
-          const imageAspect = card.fullAspect || card.baseW / card.baseH;
-          const boundAspect = maxFocusW / maxFocusH;
-          const targetW = imageAspect > boundAspect ? maxFocusW : maxFocusH * imageAspect;
-          const targetH = imageAspect > boundAspect ? maxFocusW / imageAspect : maxFocusH;
-          tx = 0;
-          ty = 0;
+          const hasDesc = !!card.description;
+          const imageAspect = card.fullAspect || card.thumbAspect || card.baseW / card.baseH;
+          
+          // 给文字腾出空间：在避让模式下缩减图片占用的最大安全边界
+          const paddingFactorW = hasDesc ? (isMobile ? 0.88 : 0.50) : (isMobile ? 0.88 : 0.78);
+          const paddingFactorH = hasDesc ? (isMobile ? 0.45 : 0.74) : (isMobile ? 0.76 : 0.74);
+          
+          const adjustedMaxFocusW = visibleW * paddingFactorW;
+          const adjustedMaxFocusH = visibleH * paddingFactorH;
+          const boundAspect = adjustedMaxFocusW / adjustedMaxFocusH;
+          
+          const targetW = imageAspect > boundAspect ? adjustedMaxFocusW : adjustedMaxFocusH * imageAspect;
+          const targetH = imageAspect > boundAspect ? adjustedMaxFocusW / imageAspect : adjustedMaxFocusH;
+          
+          if (hasDesc) {
+            if (isMobile) {
+              tx = 0;
+              ty = visibleH * 0.16; // 手机上往上推
+            } else {
+              tx = -visibleW * 0.18; // 电脑上往左移
+              ty = 0;
+            }
+          } else {
+            tx = 0;
+            ty = 0;
+          }
           tz = 15;
           trY = 0;
           targetScaleX = targetW / card.baseW;
@@ -733,8 +857,16 @@ const cardItems = items.length
           ty = card.y;
           tz = card.radius * Math.sin(currentAngle) * 0.7;
           trY = Math.atan2(tx, tz);
-          targetScaleX = 1.0;
-          targetScaleY = 1.0;
+          
+          // 桶中旋转时，卡片保持预设的长宽比（错落有致），通过纹理的 fitTextureCover 实现 object-fit: cover 裁剪而不拉伸
+          const currentAspect = card.thumbAspect || (card.baseW / card.baseH);
+          const isLarge = card.id % 11 === 0 || card.id % 17 === 0;
+          const targetArea = isLarge ? 5.0 : 2.0;
+          const realH = Math.sqrt(targetArea / currentAspect);
+          const realW = currentAspect * realH;
+          
+          targetScaleX = realW / card.baseW;
+          targetScaleY = realH / card.baseH;
           targetOpacity = anyFocused ? 0.02 : 1;
         }
 
@@ -837,6 +969,7 @@ const cardItems = items.length
       canvas.removeEventListener("pointercancel", onPointerUp);
       canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("click", onClick);
+      journalOverlay?.removeEventListener("click", onJournalOverlayClick);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("theme-change", onThemeChange);
       window.removeEventListener("page-scroll-start", onScrollStart as EventListener);
@@ -947,6 +1080,143 @@ const cardItems = items.length
     letter-spacing: 0.18em;
     text-transform: uppercase;
     pointer-events: none;
+  }
+
+  /* 苹果风格半透明磨砂故事卡片容器 */
+  .barrel3d__journal-overlay {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* 宽屏下的位置：右侧居中展示，带有轻微的位移 */
+  @media (min-width: 701px) {
+    .barrel3d__journal-overlay {
+      top: 0;
+      right: max(24px, calc((100vw - var(--container)) / 2));
+      width: clamp(340px, 28vw, 460px);
+      height: 100%;
+      transform: translateX(30px);
+    }
+    .barrel3d__journal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+  }
+
+  /* 手机窄屏下的位置：底部居中展示，向上淡入 */
+  @media (max-width: 700px) {
+    .barrel3d__journal-overlay {
+      bottom: 24px;
+      left: 16px;
+      right: 16px;
+      width: auto;
+      height: auto;
+      transform: translateY(20px);
+    }
+    .barrel3d__journal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+  }
+
+  .barrel3d__journal-card {
+    width: 100%;
+    padding: clamp(24px, 4vw, 36px);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(30px) saturate(1.9);
+    -webkit-backdrop-filter: blur(30px) saturate(1.9);
+    transition: background 0.3s, border-color 0.3s;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* 暗色模式自适应苹果磨砂面板 */
+  :global(body:not(.light-mode)) .barrel3d__journal-card {
+    background: rgba(20, 20, 25, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.32);
+  }
+
+  .journal-card__header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .journal-card__mood-badge {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 550;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+    color: var(--text-secondary);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s, border-color 0.3s;
+    white-space: nowrap;
+  }
+
+  :global(body:not(.light-mode)) .journal-card__mood-badge {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .journal-card__eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  :global(body.light-mode) .journal-card__eyebrow {
+    color: rgba(0, 0, 0, 0.42);
+  }
+
+  .journal-card__title {
+    margin: 0;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: clamp(1.15rem, 2vw, 1.45rem);
+    font-weight: 700;
+    line-height: 1.28;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .journal-card__desc {
+    margin: 0;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: clamp(0.88rem, 1.5vw, 0.98rem);
+    font-weight: 450;
+    line-height: 1.68;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    letter-spacing: 0.01em;
+  }
+
+  :global(body.light-mode) .journal-card__desc {
+    color: #48484a;
   }
 
   :global(body.light-mode) .barrel3d__eyebrow {

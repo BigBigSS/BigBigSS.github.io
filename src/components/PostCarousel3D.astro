@@ -29,7 +29,7 @@ const { posts } = Astro.props;
                 data-carousel-card
                 style={`--accent: ${spectrum[index % spectrum.length]};`}
               >
-                <a class="card-link carousel-card__link" href={`/posts/${post.id}/`}>
+                <a class="card-link carousel-card__link" href={`/posts/${post.id}`}>
                   <div class="carousel-card__top">
                     <span class="carousel-card__index">{String(index + 1).padStart(2, "0")}</span>
                     <span class="carousel-card__date">{formatCompactDate(post.data.date)}</span>

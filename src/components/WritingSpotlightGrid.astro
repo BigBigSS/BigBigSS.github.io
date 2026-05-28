@@ -28,7 +28,7 @@ const { posts } = Astro.props;
             data-writing-card
           >
             <div class="writing-spotlight__card-surface">
-              <a class="writing-spotlight__link" href={`/posts/${post.id}/`}>
+              <a class="writing-spotlight__link" href={`/posts/${post.id}`}>
                 <div class="writing-spotlight__top">
                   <span>{String(index + 1).padStart(2, "0")}</span>
                   <span>{formatCompactDate(post.data.date)}</span>
@@ -86,6 +86,112 @@ const { posts } = Astro.props;
       { once: true },
     );
   });
+
+  // 电影级共享元素转场控制器
+  const setupGridTransitions = () => {
+    try {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const supportsVT = 'startViewTransition' in document;
+
+      if (!supportsVT) {
+        console.warn("[Antigravity VT] 浏览器不支持 W3C View Transitions");
+        return;
+      }
+      if (reducedMotion) {
+        console.log("[Antigravity VT] 检测到用户开启了减弱动态效果限制，跳过转场");
+        return;
+      }
+
+      console.log("[Antigravity VT] 首页最近文章卡片转场拦截器已就绪");
+
+      document.addEventListener("click", async (e) => {
+        const cardLink = (e.target as HTMLElement).closest<HTMLAnchorElement>(".writing-spotlight__link");
+        if (!cardLink) return;
+
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        e.preventDefault();
+        const url = cardLink.href;
+        console.log("[Antigravity VT] 成功拦截点击事件，目标跳转路径:", url);
+
+        // 临时标记当前卡片的标题和描述
+        const titleEl = cardLink.querySelector("h3") as HTMLElement;
+        const descEl = cardLink.querySelector("p") as HTMLElement;
+
+        if (titleEl) {
+          titleEl.style.viewTransitionName = "post-title";
+          console.log("[Antigravity VT] 成功打标旧页面标题元素");
+        }
+        if (descEl) {
+          descEl.style.viewTransitionName = "post-desc";
+          console.log("[Antigravity VT] 成功打标旧页面描述元素");
+        }
+
+        try {
+          console.log("[Antigravity VT] 启动页面异步 Fetch...");
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Fetch failed");
+          const htmlText = await res.text();
+          console.log("[Antigravity VT] 页面 Fetch 成功，字节大小:", htmlText.length);
+
+          const parser = new DOMParser();
+          const targetDoc = parser.parseFromString(htmlText, "text/html");
+          const targetContent = targetDoc.querySelector("#content");
+          const targetTitle = targetDoc.title;
+
+          if (!targetContent) throw new Error("在新页面中未定位到 `#content` 核心正文容器");
+
+          console.log("[Antigravity VT] 执行 startViewTransition...");
+          const transition = (document as any).startViewTransition(() => {
+            const currentContent = document.querySelector("#content");
+            if (currentContent) {
+              currentContent.innerHTML = targetContent.innerHTML;
+              console.log("[Antigravity VT] 正文 innerHTML 替换成功");
+            } else {
+              console.warn("[Antigravity VT] 未在当前活动页面中找到 `#content` 容器");
+            }
+            
+            // 在当前已替换的 DOM 树上实时打标记，保证平滑飞入
+            const targetTitleEl = document.querySelector(".post-header__title") as HTMLElement;
+            const targetNoEl = document.querySelector(".eyebrow") as HTMLElement;
+            const targetDescEl = document.querySelector(".post-header__description") as HTMLElement;
+
+            if (targetTitleEl) {
+              targetTitleEl.style.viewTransitionName = "post-title";
+              console.log("[Antigravity VT] 成功打标新页面标题元素");
+            }
+            if (targetNoEl) {
+              targetNoEl.style.viewTransitionName = "post-no";
+              console.log("[Antigravity VT] 成功打标新页面序号元素");
+            }
+            if (targetDescEl) {
+              targetDescEl.style.viewTransitionName = "post-desc";
+              console.log("[Antigravity VT] 成功打标新页面描述元素");
+            }
+
+            document.title = targetTitle;
+            history.pushState({ page: "post" }, "", url);
+            window.scrollTo({ top: 0 });
+          });
+
+          await transition.finished;
+          console.log("[Antigravity VT] 电影级飞入过渡顺利交付！");
+        } catch (err) {
+          console.error("[Antigravity VT] 跳转过渡阶段异常，已优雅降级为原生页面跳转:", err);
+          window.location.href = url;
+        }
+      });
+
+      window.addEventListener("popstate", () => {
+        console.log("[Antigravity VT] 检测到后退/前进导航，执行重载");
+        window.location.reload();
+      });
+    } catch (e) {
+      console.error("[Antigravity VT] 初始化首页拦截器异常:", e);
+    }
+  };
+
+  setupGridTransitions();
 </script>
 
 <style>

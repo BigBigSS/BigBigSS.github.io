@@ -12,8 +12,6 @@ const timeline = await Promise.all(
     rendered: await render(entry),
   })),
 );
-
-const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
 ---
 
 <BaseLayout title={`Now · ${site.name}`} description="hui 的动态时间线。">
@@ -26,6 +24,22 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
         <!-- Sticky Guide (Left side on desktop) -->
         <aside class="sticky-guide reveal-on-scroll">
           <SectionHeading index="03" label="状态" title="最近" />
+          
+          <!-- 极简高雅的中心焦点日期指示器 -->
+          <div class="active-date-indicator">
+            <span class="active-date-label">TIMELINE</span>
+            <div class="active-date-wrapper">
+              <div class="active-date-value" id="sticky-date-container">
+                <span class="date-scroll-segment" id="date-year">----</span>
+                <span class="date-scroll-lit">年</span>
+                <span class="date-scroll-segment" id="date-month">--</span>
+                <span class="date-scroll-lit">月</span>
+                <span class="date-scroll-segment" id="date-day">--</span>
+                <span class="date-scroll-lit">日</span>
+              </div>
+            </div>
+          </div>
+
           <p class="guide-lead">
             这是一些碎片化的记录。<br>
             关于我最近在做什么、思考什么。
@@ -34,11 +48,12 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
         </aside>
 
         <!-- Timeline Feed (Right side on desktop) -->
-        <div class="editorial-feed">
+        <div class="editorial-feed" id="editorial-scroll-container">
           {
             timeline.map(({ entry, rendered }, idx) => {
               // Stagger first few elements
               const delayAttr = idx < 4 ? `transition-delay: ${idx * 0.1}s` : "";
+              const formattedDate = formatDate(entry.data.date);
 
               return (
                 <button 
@@ -46,9 +61,11 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
                   class="editorial-card reveal-on-scroll" 
                   style={delayAttr} 
                   data-now-open={String(idx)}
+                  data-now-date={formattedDate}
+                  data-editorial-card
                 >
                   <div class="editorial-card__meta">
-                    <span class="editorial-card__date">{formatDate(entry.data.date)}</span>
+                    <span class="editorial-card__date">{formattedDate}</span>
                     <span class="editorial-card__line"></span>
                     <span class="editorial-card__idx">LOG // {String(idx + 1).padStart(2, "0")}</span>
                   </div>
@@ -95,43 +112,42 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
                 </div>
 
                 <div class="now-editorial__detail-body">
-                  <h3 class="now-editorial__detail-title">{entry.data.summary}</h3>
+                  {/* 正经随笔标题，字号与字重降为典雅含蓄的高级字重 */}
+                  <h1 class="now-editorial__detail-title">{entry.data.title || "随笔记录"}</h1>
 
                   <div class="now-editorial__detail-meta">
                     <div>
-                      <span>Date</span>
+                      <span>Date / 日期</span>
                       <strong>{formatDate(entry.data.date)}</strong>
                     </div>
                     <div>
-                      <span>Type</span>
+                      <span>Type / 类别</span>
                       <strong>DATA LOG</strong>
                     </div>
                     <div>
-                      <span>Mode</span>
+                      <span>Mode / 模式</span>
                       <strong>TRANSMISSION</strong>
                     </div>
                     <div>
-                      <span>Status</span>
-                      <strong>Open</strong>
+                      <span>Status / 状态</span>
+                      <strong>Active / 归档</strong>
                     </div>
                   </div>
 
-                  <div
-                    class="now-editorial__detail-visual"
-                    style={`--tone: ${visualTones[index % visualTones.length]};`}
-                  >
-                    <span>SIGNAL ACQUIRED // DETAILED VIEW</span>
-                  </div>
+                  {/* 已根据您的意见彻底删除突兀的 SIGNAL ACQUIRED 大图片框，让排版回归纯净雅致 */}
 
                   <div class="now-editorial__detail-columns">
+                    {/* 左栏：精美的导读与摘要板块 */}
                     <div class="now-editorial__detail-lead">
-                      <h4>DECRYPTING THE LATEST TRANSMISSION.</h4>
+                      <div class="now-editorial__lead-card">
+                        <h4 class="now-editorial__lead-heading">INTRODUCTION / 摘要</h4>
+                        <p class="now-editorial__lead-text">{entry.data.summary}</p>
+                      </div>
                     </div>
 
+                    {/* 右栏：专注正文随笔阅读 */}
                     <div class="now-editorial__detail-copy">
-                      <!-- Render the full article body inside the modal -->
-                      {entry.data.title && <p class="now-editorial__detail-summary">{entry.data.title}</p>}
-                      <div class="prose-shell">
+                      <div class="prose-shell now-editorial__prose">
                         <Content />
                       </div>
                     </div>
@@ -256,6 +272,150 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
       { once: true },
     );
   });
+
+  // ============================================
+  // 3D 滚筒弧度滚动与中心焦点日期实时追踪控制器
+  // ============================================
+  const setupScroll3DEffect = () => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-editorial-card]"));
+    const dateYearEl = document.getElementById("date-year");
+    const dateMonthEl = document.getElementById("date-month");
+    const dateDayEl = document.getElementById("date-day");
+    if (!cards.length) return;
+
+    let activeDate = "";
+    let ticking = false;
+
+    const updateScrollTransforms = () => {
+      const viewportCenterY = window.innerHeight / 2;
+      let closestCard: HTMLElement | null = null;
+      let minDiff = Infinity;
+
+      cards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        const cardCenterY = rect.top + rect.height / 2;
+        const diff = Math.abs(cardCenterY - viewportCenterY);
+
+        // 1. 寻找离屏幕中心最近的焦点卡片
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestCard = card;
+        }
+
+        // 2. 核心：计算横向圆弧视差平移 (Cylinder Horizontal Curve Path)
+        // 完美贴合用户手绘的圆弧图示结构：中间文章向右推出最远，顶部和底部的文章向左弯曲收回
+        const deltaY = cardCenterY - viewportCenterY;
+        const maxDistance = window.innerHeight / 1.05; // 弧度感知的有效高度
+        const normalized = Math.min(1, Math.max(-1, deltaY / maxDistance));
+
+        // 抛物线插值：在屏幕最中心处向右平移推出 42px，在偏离中心的顶部和底部收回至 0，形成优雅凸向左侧的圆弧
+        const translateX = (1 - Math.pow(Math.abs(normalized), 1.8)) * 42; 
+        
+        const scale = 1 - Math.abs(normalized) * 0.04; // 偏离中心越远，微缩放 4%
+        const opacity = 1 - Math.abs(normalized) * 0.4; // 偏离中心越远，微淡出 40%
+
+        // 应用高精度平滑弧线平移，保持卡片和文章绝对水平，维持最高雅端庄的阅读体验
+        card.style.transform = `translateX(${translateX}px) scale(${scale})`;
+        card.style.opacity = `${opacity}`;
+        card.style.transformOrigin = "left center";
+        card.style.backfaceVisibility = "hidden";
+      });
+
+      // 3. 更新左侧 Sticky 栏焦点日期 (汉字固定不变，数字差分纵向模糊滚动)
+      if (closestCard) {
+        const newDate = (closestCard as HTMLElement).dataset.nowDate || "";
+        if (newDate && newDate !== activeDate) {
+          activeDate = newDate;
+
+          // 正则精准解析中文格式日期，提取出 [年, 月, 日] 的数字部分
+          const match = newDate.match(/(\d+)年\s*(\d+)月\s*(\d+)日/);
+          if (match && dateYearEl && dateMonthEl && dateDayEl) {
+            const nextYear = match[1];
+            const nextMonth = match[2];
+            const nextDay = match[3];
+
+            // 差分滚轮物理动画引擎
+            const animateSegment = (el: HTMLElement, newValue: string) => {
+              const currentValue = el.textContent || "";
+              
+              // 1. 如果是初始默认状态 (---- 或 --)，说明是首次加载，直接静默赋值，防止飞入突兀感
+              if (currentValue === "----" || currentValue === "--") {
+                el.textContent = newValue;
+                return;
+              }
+              
+              // 2. 差分判定：如果数值没有发生改变，则保持绝对静止，不触发动画 (致敬高档机械表齿轮差分)
+              if (currentValue === newValue) return;
+
+              // 3. 触发向上模糊飞梭滑出
+              el.classList.add("slide-out");
+
+              // 4. 160ms 刚好完成滑出，在不可见时刻瞬间闪现至下方，并更新数值
+              setTimeout(() => {
+                el.textContent = newValue;
+                el.className = "date-scroll-segment slide-in-prepare";
+
+                // 5. 在下一帧让其优雅滑入回位，并平滑恢复清晰
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    el.className = "date-scroll-segment";
+                  });
+                });
+              }, 160);
+            };
+
+            animateSegment(dateYearEl, nextYear);
+            animateSegment(dateMonthEl, nextMonth);
+            animateSegment(dateDayEl, nextDay);
+          }
+        }
+      }
+
+      ticking = false;
+    };
+
+    let scrollTimer = 0;
+
+    const onScroll = () => {
+      // 1. 滚动开始时，强制加上 is-scrolling，在 CSS 屏蔽 pointer-events 避免碰到鼠标震颤
+      if (!document.body.classList.contains("is-scrolling")) {
+        document.body.classList.add("is-scrolling");
+      }
+
+      if (!ticking) {
+        window.requestAnimationFrame(updateScrollTransforms);
+        ticking = true;
+      }
+
+      // 2. 防抖移除 is-scrolling，停止滚动 150ms 后恢复 pointer-events 交互
+      if (scrollTimer) {
+        window.clearTimeout(scrollTimer);
+      }
+      scrollTimer = window.setTimeout(() => {
+        document.body.classList.remove("is-scrolling");
+        scrollTimer = 0;
+      }, 150);
+    };
+
+    // 初始化运行一次，并监听滚动
+    updateScrollTransforms();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // 释放资源
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        window.removeEventListener("scroll", onScroll);
+        if (scrollTimer) window.clearTimeout(scrollTimer);
+      },
+      { once: true },
+    );
+  };
+
+  // 在 DOM 渲染的下一个帧周期，确保完全绑定
+  requestAnimationFrame(() => {
+    setupScroll3DEffect();
+  });
 </script>
 
 <style>
@@ -283,8 +443,89 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     top: 140px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
     z-index: 10;
+  }
+
+  /* 极简高雅的焦点日期组件样式 */
+  .active-date-indicator {
+    margin: 10px 0;
+    padding: 18px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .active-date-label {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .active-date-wrapper {
+    overflow: hidden;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* 
+   * 3D 模糊差分数字滚轮排版 
+   */
+  .active-date-value {
+    display: flex;
+    align-items: baseline;
+    color: var(--text-primary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 1.45rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .date-scroll-segment {
+    display: inline-block;
+    min-width: 2ch;
+    text-align: center;
+    transition: 
+      transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+      filter 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, filter, opacity;
+  }
+
+  /* 年份略宽 */
+  #date-year {
+    min-width: 4.2ch;
+  }
+
+  /* 汉字固定不动，呈现温润的次级偏光色 */
+  .date-scroll-lit {
+    display: inline-block;
+    color: var(--text-tertiary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-inline: 4px;
+    user-select: none;
+  }
+
+  /* 向上模糊滑出 */
+  .date-scroll-segment.slide-out {
+    transform: translateY(-100%);
+    filter: blur(4px);
+    opacity: 0;
+  }
+
+  /* 下方待命状态 */
+  .date-scroll-segment.slide-in-prepare {
+    transform: translateY(100%);
+    filter: blur(4px);
+    opacity: 0;
+    transition: none !important;
   }
 
   .guide-lead {
@@ -297,21 +538,27 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
 
   .guide-line {
     width: 1px;
-    height: 140px;
+    height: 100px;
     background: linear-gradient(to bottom, color-mix(in srgb, var(--text-tertiary) 40%, transparent), transparent);
-    margin-top: 20px;
+    margin-top: 10px;
     margin-left: 2px;
   }
 
   /*
    * Editorial Feed (Right)
+   * 开启 3D 立体空间与透视，支撑极具纵深视差的滚筒弧度滚动
    */
   .editorial-feed {
     display: grid;
     gap: 40px;
     padding-bottom: 80px;
+    transform-style: preserve-3d;
+    perspective: 1000px;
   }
 
+  /*
+   * Editorial Card Button
+   */
   /*
    * Editorial Card Button
    */
@@ -326,9 +573,28 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     color: inherit;
     text-align: left;
     cursor: pointer;
-    transition: 
-      border-color 0.4s var(--ease-cinema),
-      transform 0.4s var(--ease-cinema);
+    /* 普通可见状态下移除 transform 与 opacity 过渡，让滚动视差和淡出由 JS 物理渲染，享受绝对精度，防范二次抖动 */
+    transition: border-color 0.4s var(--ease-cinema);
+    will-change: transform, opacity;
+  }
+
+  /* 
+   * 极奢黑科技：Z轴物理隔离交互热区 (Z-Index Hotspot Shield)
+   * 绝对定位并 100% 铺满卡片盒模型，不随内部任何文字内容的向右位移而发生偏移。
+   * 鼠标一旦进入卡片，其指针就会被这层绝对静止的热区牢牢锁定，
+   * 即使底层内容向右平移 6px，鼠标也绝不会脱离热区范围，从物理上 100% 根除悬浮边界的抖动振荡！
+   */
+  .editorial-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0); /* 极低成本透明背景，防范部分浏览器事件穿透 */
+    z-index: 5;
+  }
+
+  /* 滚动过程中，临时屏蔽所有卡片的鼠标事件，完美根除滚动时碰到鼠标产生的反复触碰与闪烁 Bug */
+  :global(body.is-scrolling) .editorial-card {
+    pointer-events: none !important;
   }
 
   :global(body.light-mode) .editorial-card {
@@ -350,12 +616,14 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     align-items: center;
     gap: 16px;
     width: 100%;
-    transition: transform 0.4s var(--ease-cinema);
+    /* 挂载高柔和度平移过渡，打造抽屉般平滑展开的极奢体感 */
+    transition: transform 0.45s var(--ease-cinema);
   }
 
+  /* 悬浮时，元信息栏平滑滑出 6px */
   .editorial-card:hover .editorial-card__meta,
   .editorial-card:focus-visible .editorial-card__meta {
-    transform: translateX(10px);
+    transform: translateX(6px);
   }
 
   .editorial-card__date {
@@ -364,13 +632,34 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     font-size: 0.85rem;
     letter-spacing: 0.05em;
     font-weight: 500;
+    /* 子元素自身承载高级色彩呼吸过渡 */
+    transition: color 0.4s var(--ease-cinema);
+  }
+
+  .editorial-card:hover .editorial-card__date,
+  .editorial-card:focus-visible .editorial-card__date {
+    color: var(--text-primary);
   }
 
   .editorial-card__line {
     flex: 1;
     height: 1px;
     background: var(--border);
-    opacity: 0.4;
+    opacity: 0.25;
+    /* 采用高奢物理拉伸与亮度渐变，以 center left 为起点，悬浮时优雅展开 */
+    transform: scaleX(0.96);
+    transform-origin: left center;
+    transition: 
+      opacity 0.4s var(--ease-cinema),
+      transform 0.4s var(--ease-cinema),
+      background-color 0.4s var(--ease-cinema);
+  }
+
+  .editorial-card:hover .editorial-card__line,
+  .editorial-card:focus-visible .editorial-card__line {
+    opacity: 0.85;
+    transform: scaleX(1);
+    background: var(--text-primary);
   }
 
   .editorial-card__idx {
@@ -378,16 +667,24 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 0.75rem;
     letter-spacing: 0.15em;
+    transition: color 0.4s var(--ease-cinema);
+  }
+
+  .editorial-card:hover .editorial-card__idx,
+  .editorial-card:focus-visible .editorial-card__idx {
+    color: var(--text-secondary);
   }
 
   .editorial-card__content {
     padding-left: 2px;
-    transition: transform 0.4s var(--ease-cinema);
+    /* 挂载高柔和度平移过渡，打造抽屉般平滑展开的极奢体感 */
+    transition: transform 0.45s var(--ease-cinema);
   }
 
+  /* 悬浮时，主体文字内容优雅平滑滑出 6px */
   .editorial-card:hover .editorial-card__content,
   .editorial-card:focus-visible .editorial-card__content {
-    transform: translateX(10px);
+    transform: translateX(6px);
   }
 
   .editorial-card__title {
@@ -404,6 +701,12 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     font-size: 1.15rem;
     line-height: 1.6;
     font-weight: 400;
+    transition: color 0.4s var(--ease-cinema);
+  }
+
+  .editorial-card:hover .editorial-card__summary,
+  .editorial-card:focus-visible .editorial-card__summary {
+    color: var(--text-primary);
   }
 
   /*
@@ -413,25 +716,28 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     opacity: 0;
     transform: translateY(30px) scale(0.98);
     will-change: opacity, transform;
+    /* 首次进入视口淡入时，拥有优雅大气的 slow-motion 缓动过渡 */
+    transition: 
+      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .reveal-on-scroll.is-visible {
     opacity: 1;
     transform: translateY(0) scale(1);
-    /* Restore normal pointer events / hover states after reveal */
+    /* 
+     * 极度关键：一旦淡入成功变为可见，立即将 transition 切换为不含 transform 和 opacity 的清透版，
+     * 保证后续滚动过程中，JS 动态计算的 transform 拥有 100% 灵敏无延迟响应，彻底隔离滚动停止时的二次回弹！
+     */
+    transition: border-color 0.4s var(--ease-cinema);
   }
 
   /* ============================
    * Curtain Modal Styles Ported
    * ============================ */
    .now-editorial__curtain {
-    position: fixed;
-    inset: 0;
-    z-index: 220;
-    pointer-events: none;
-    transform: translateY(100%);
-    background: var(--text-primary);
-    transition: transform 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+    /* 彻底注释并隐藏原有的全屏大面积黑色遮罩滑入动画，还原极其清透的高级感 */
+    display: none !important;
   }
 
   .now-editorial__detail-layer {
@@ -444,22 +750,27 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
     pointer-events: none;
     background: var(--bg);
     color: var(--text-primary);
-    transition: opacity 0.4s ease;
+    /* 升级：原位微缩放与微平移，创造极奢电影级卡片展开质感 */
+    transform: scale(0.98) translateY(12px);
+    transition: 
+      opacity 480ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   [data-state="entering"] .now-editorial__curtain,
   [data-state="open"] .now-editorial__curtain {
-    transform: translateY(0);
+    display: none !important;
   }
 
   [data-state="exiting"] .now-editorial__curtain {
-    transform: translateY(-100%);
+    display: none !important;
   }
 
   [data-state="open"] .now-editorial__detail-layer {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+    transform: scale(1) translateY(0);
   }
 
   .now-editorial__detail {
@@ -550,98 +861,99 @@ const visualTones = ["#d8d8d8", "#111111", "#c7c7c7", "#2a2a2a"];
   }
 
   .now-editorial__detail-title {
-    margin: 0;
-    max-width: 12ch;
-    font-size: clamp(3.4rem, 9vw, 8.4rem);
-    font-weight: 800;
-    line-height: 0.85;
-    letter-spacing: -0.08em;
+    margin: 0 0 16px;
+    font-size: clamp(2.0rem, 4.5vw, 3.3rem);
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
   }
 
   .now-editorial__detail-meta {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0;
-    margin-top: 32px;
-    padding: 28px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 24px;
+    padding: 22px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
   .now-editorial__detail-meta > div {
     display: grid;
-    gap: 10px;
+    gap: 6px;
   }
 
   .now-editorial__detail-meta > div + div {
     padding-left: 24px;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid var(--border);
+    opacity: 0.85;
   }
 
   .now-editorial__detail-meta span {
     color: var(--text-tertiary);
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.18em;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
   }
 
   .now-editorial__detail-meta strong {
-    font-size: clamp(1rem, 1.8vw, 1.45rem);
+    font-size: clamp(0.9rem, 1.4vw, 1.2rem);
     font-weight: 500;
     line-height: 1.2;
+    color: var(--text-primary);
   }
 
-  .now-editorial__detail-visual {
-    position: relative;
-    margin-top: 28px;
-    aspect-ratio: 21 / 9;
-    overflow: hidden;
-    background: var(--tone);
-  }
-
-  .now-editorial__detail-visual::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0.3;
-    mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  }
-
-  .now-editorial__detail-visual span {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.78rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    mix-blend-mode: difference;
-  }
-
+  /* 电影级书籍式双栏随笔排版 */
   .now-editorial__detail-columns {
     display: grid;
-    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
-    gap: 48px;
-    margin-top: 40px;
+    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+    gap: 56px;
+    margin-top: 36px;
+    align-items: start;
   }
 
-  .now-editorial__detail-lead h4 {
+  /* 左栏无框留白·雅致垂直装饰线导读 */
+  .now-editorial__lead-card {
+    position: sticky;
+    top: 40px;
+    padding-left: 18px;
+    /* 采用自适应 border 的极淡色彩，在左侧衬托一根温润纯净的垂直细线 */
+    border-left: 2px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  }
+
+  .now-editorial__lead-heading {
+    margin: 0 0 10px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__lead-text {
     margin: 0;
-    font-size: clamp(2rem, 3vw, 3rem);
-    line-height: 0.98;
-    letter-spacing: -0.05em;
+    color: var(--text-secondary);
+    font-size: 0.94rem;
+    line-height: 1.65;
+    font-weight: 400;
   }
 
-  .now-editorial__detail-summary {
-    margin: 0 0 20px;
-    color: var(--text-primary);
-    font-size: 1.16rem;
-    line-height: 1.5;
+  /* 右栏专注阅读的随笔排版 */
+  .now-editorial__prose {
+    font-size: 1.05rem;
+    line-height: 1.85;
+    color: var(--text-secondary);
+  }
+
+  .now-editorial__prose :global(p) {
+    margin-bottom: 24px;
+  }
+
+  .now-editorial__prose :global(p:last-child) {
+    margin-bottom: 0;
   }
 
   /* 

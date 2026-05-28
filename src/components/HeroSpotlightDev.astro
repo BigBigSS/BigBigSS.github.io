@@ -2,11 +2,11 @@
 import { site } from "../data/site";
 ---
 
-<section class="hero" data-hero-root>
+<section class="hero">
   <div class="noise-overlay" aria-hidden="true"></div>
   <div class="ambient-glow" aria-hidden="true"></div>
 
-  <!-- 背景场景 (基础极浅态) -->
+  <!-- 背景场景 (基础极浅态打底) -->
   <div class="scene-container dim-scene" aria-hidden="true">
     <div class="ribbon ribbon-1"></div>
     <div class="ribbon ribbon-2"></div>
@@ -14,16 +14,8 @@ import { site } from "../data/site";
     <div class="ribbon ribbon-4"></div>
   </div>
 
-  <!-- 鼠标高光揭示态 -->
-  <div class="scene-container mouse-scene" data-mouse-scene aria-hidden="true">
-    <div class="ribbon ribbon-1"></div>
-    <div class="ribbon ribbon-2"></div>
-    <div class="ribbon ribbon-3"></div>
-    <div class="ribbon ribbon-4"></div>
-  </div>
-
-  <!-- 自动扫光效果层 -->
-  <div class="scene-container wave-scene" data-wave-scene aria-hidden="true">
+  <!-- 炫丽高光常驻态 -->
+  <div class="scene-container mouse-scene" aria-hidden="true">
     <div class="ribbon ribbon-1"></div>
     <div class="ribbon ribbon-2"></div>
     <div class="ribbon ribbon-3"></div>
@@ -70,168 +62,6 @@ import { site } from "../data/site";
   </div>
 </section>
 
-<script>
-  const heroRoot = document.querySelector<HTMLElement>("[data-hero-root]");
-  const mouseScene = document.querySelector<HTMLElement>("[data-mouse-scene]");
-  const waveScene = document.querySelector<HTMLElement>("[data-wave-scene]");
-
-  if (heroRoot && mouseScene && waveScene) {
-    const hero = heroRoot;
-    const scene = mouseScene;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    let targetX = window.innerWidth / 2;
-    let targetY = window.innerHeight / 2;
-    let currentX = targetX;
-    let currentY = targetY;
-    let targetOpacity = 0;
-    let currentOpacity = 0;
-
-    let waveProgress = -20;
-    let waveOpacity = 0;
-    let isWaving = false;
-    let sweepTimer = 0;
-    let firstSweepScheduled = false;
-
-    let animationId = 0;
-    let isRunning = false;
-    let inViewport = false;
-
-    const triggerSweep = () => {
-      if (isWaving || reducedMotion) return;
-      isWaving = true;
-      waveProgress = -20;
-      waveOpacity = 0;
-      startAnimation();
-    };
-
-    const scheduleFirstSweep = () => {
-      if (firstSweepScheduled || reducedMotion) return;
-      firstSweepScheduled = true;
-      window.setTimeout(triggerSweep, 1500);
-    };
-
-    const startSweepTimer = () => {
-      if (sweepTimer || reducedMotion) return;
-      sweepTimer = window.setInterval(triggerSweep, 10000);
-    };
-
-    const stopSweepTimer = () => {
-      if (sweepTimer) {
-        window.clearInterval(sweepTimer);
-        sweepTimer = 0;
-      }
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      targetX = e.clientX;
-      targetY = e.clientY;
-      targetOpacity = 1;
-      startAnimation();
-    };
-
-    const onPointerLeave = () => {
-      targetOpacity = 0;
-      startAnimation();
-    };
-
-    hero.addEventListener("pointermove", onPointerMove);
-    hero.addEventListener("pointerleave", onPointerLeave);
-
-    function animate() {
-      if (!isRunning) return;
-
-      currentX += (targetX - currentX) * 0.08;
-      currentY += (targetY - currentY) * 0.08;
-      currentOpacity += (targetOpacity - currentOpacity) * 0.06;
-
-      const rect = scene.getBoundingClientRect();
-      const relativeX = currentX - rect.left;
-      const relativeY = currentY - rect.top;
-
-      hero.style.setProperty("--mouse-x", `${relativeX}px`);
-      hero.style.setProperty("--mouse-y", `${relativeY}px`);
-      hero.style.setProperty("--bright-opacity", currentOpacity.toString());
-
-      if (isWaving) {
-        waveProgress += 0.6;
-        if (waveProgress <= 90) {
-          waveOpacity = Math.min(0.85, waveOpacity + 0.016);
-        } else if (waveProgress > 90 && waveOpacity > 0) {
-          waveOpacity -= 0.05;
-        }
-        hero.style.setProperty("--wave-progress", `${waveProgress}%`);
-        hero.style.setProperty("--wave-opacity", waveOpacity.toString());
-        if (waveProgress > 130) {
-          isWaving = false;
-          waveOpacity = 0;
-          hero.style.setProperty("--wave-opacity", "0");
-        }
-      }
-
-      const idle =
-        !isWaving &&
-        Math.abs(targetX - currentX) < 0.1 &&
-        Math.abs(targetY - currentY) < 0.1 &&
-        Math.abs(targetOpacity - currentOpacity) < 0.001;
-
-      if (idle) {
-        stopAnimation();
-        return;
-      }
-
-      animationId = requestAnimationFrame(animate);
-    }
-
-    function startAnimation() {
-      if (isRunning || !inViewport || document.visibilityState === "hidden") return;
-      isRunning = true;
-      animationId = requestAnimationFrame(animate);
-    }
-
-    function stopAnimation() {
-      isRunning = false;
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-        animationId = 0;
-      }
-    }
-
-    if ("IntersectionObserver" in window) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries.some((entry) => entry.isIntersecting);
-          inViewport = visible;
-          if (visible) {
-            startSweepTimer();
-            scheduleFirstSweep();
-            startAnimation();
-          } else {
-            stopSweepTimer();
-            stopAnimation();
-          }
-        },
-        { rootMargin: "0px", threshold: 0 },
-      );
-      observer.observe(hero);
-    } else {
-      inViewport = true;
-      startSweepTimer();
-      scheduleFirstSweep();
-      startAnimation();
-    }
-
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") {
-        stopAnimation();
-        stopSweepTimer();
-      } else if (inViewport) {
-        startSweepTimer();
-        startAnimation();
-      }
-    });
-  }
-</script>
 
 <style is:global>
   .hero {
@@ -327,18 +157,12 @@ import { site } from "../data/site";
 
   .hero .mouse-scene {
     z-index: 2;
-    opacity: var(--bright-opacity);
-    mask-image: radial-gradient(700px circle at var(--mouse-x) var(--mouse-y), rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
-    -webkit-mask-image: radial-gradient(700px circle at var(--mouse-x) var(--mouse-y), rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
-    will-change: opacity;
+    opacity: 0.95;
   }
 
-  .hero .wave-scene {
-    z-index: 3;
-    opacity: var(--wave-opacity);
-    mask-image: linear-gradient(105deg, rgba(0,0,0,0) calc(var(--wave-progress) - 20%), rgba(0,0,0,1) var(--wave-progress), rgba(0,0,0,0) calc(var(--wave-progress) + 20%));
-    -webkit-mask-image: linear-gradient(105deg, rgba(0,0,0,0) calc(var(--wave-progress) - 20%), rgba(0,0,0,1) var(--wave-progress), rgba(0,0,0,0) calc(var(--wave-progress) + 20%));
-    will-change: opacity;
+  html.theme-preboot-light .hero .mouse-scene,
+  body.light-mode .hero .mouse-scene {
+    opacity: 0.85;
   }
 
   .hero .ribbon {

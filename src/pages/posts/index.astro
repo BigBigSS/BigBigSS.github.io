@@ -57,13 +57,13 @@ const year =
           const readTime = estimateReadTime(post);
           return (
             <li>
-              <a class="entry" href={`/posts/${post.id}/`}>
-                <span class="entry__no" aria-hidden="true">
+              <a class="entry" href={`/posts/${post.id}`}>
+                <span class="entry__no" aria-hidden="true" transition:name={`post-no-${post.id}`}>
                   №{String(idx + 1).padStart(2, "0")}
                 </span>
                 <div class="entry__main">
-                  <h2 class="entry__title">{post.data.title}</h2>
-                  <p class="entry__desc">{post.data.description}</p>
+                  <h2 class="entry__title" transition:name={`post-title-${post.id}`}>{post.data.title}</h2>
+                  <p class="entry__desc" transition:name={`post-desc-${post.id}`}>{post.data.description}</p>
                   {post.data.tags.length > 0 && (
                     <ul class="entry__tags">
                       {post.data.tags.map((tag) => (
@@ -363,3 +363,4 @@ const year =
     }
   }
 </style>
+

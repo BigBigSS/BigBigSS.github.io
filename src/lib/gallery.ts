@@ -11,6 +11,8 @@ export type GalleryItem = {
   originalVideoSrc?: string;
   type?: "image" | "live";
   title?: string;
+  description?: string;
+  mood?: string;
   alt: string;
   post: string | null;
   tone: "light" | "dark" | "any";

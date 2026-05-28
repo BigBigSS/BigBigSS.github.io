@@ -15,60 +15,249 @@ export async function getStaticPaths() {
 
 const { post } = Astro.props;
 const { Content } = await render(post);
+
+// 计算当前文章的物理序号以及预估阅读时长，用于完美对齐列表页与转场效果
+const posts = publishedPosts(await getCollection("posts"));
+const currentIndex = posts.findIndex((p) => p.id === post.id);
+const entryNumber = currentIndex !== -1 ? String(currentIndex + 1).padStart(2, "0") : "00";
+
+const estimateReadTime = (p: any) => {
+  const text = p.body && p.body.length > 0 ? p.body : p.data.description;
+  const chars = text.replace(/\s+/g, "").length;
+  return Math.max(1, Math.round(chars / 350));
+};
+const readTime = estimateReadTime(post);
 ---
 
-<BaseLayout title={`${post.data.title} · ${site.name}`} description={post.data.description}>
-  <section class="section">
-    <div class="copy-shell">
-      <a class="post-back" href="/posts">
-        <span aria-hidden="true">←</span>
-        返回文章列表
-      </a>
+<BaseLayout 
+  title={`${post.data.title} · ${site.name}`} 
+  description={post.data.description}
+  preloadImages={post.data.cover ? [post.data.cover] : []}
+>
+  <!-- 阅读进度条 -->
+  <div class="reading-progress-container" aria-hidden="true">
+    <div class="reading-progress-bar" id="progressBar"></div>
+  </div>
 
-      <header class="post-header">
-        <p class="eyebrow">04 / 文章</p>
-        <h1 class="post-header__title">{post.data.title}</h1>
-        <p class="post-header__description">{post.data.description}</p>
-        <div class="meta-line">
-          <span>{formatDate(post.data.date)}</span>
-          <span>{post.data.tags.join(" · ")}</span>
+  <section class="lab-article-section">
+    <div class="article-container">
+      
+      <!-- 1. 极简学术返回顶栏 -->
+      <div class="lab-article-nav-bar" aria-label="文章导航">
+        <a class="post-back btn-text-back" href="/posts">
+          <span class="back-arrow-char">←</span>
+          <span>RETURN TO LAB</span>
+        </a>
+      </div>
+
+      <!-- 2. 精美的学术期刊式头部 (Header) -->
+      <header class="article-header">
+        <div class="header-prefix">
+          <span class="eyebrow eyebrow-no" transition:name={`post-no-${post.id}`}>№{entryNumber}</span>
+          <span class="eyebrow-sep">/</span>
+          <span class="eyebrow-category">RESEARCH PAPER</span>
+        </div>
+        
+        <h1 class="post-header__title select-all" transition:name={`post-title-${post.id}`}>{post.data.title}</h1>
+        
+        <!-- 一体化合并的学术总览卡片 -->
+        <div class="academic-overview-panel">
+          
+          <!-- 摘要部分 -->
+          {post.data.description && (
+            <div class="overview-abstract-section">
+              <div class="overview-abstract-title">[ ABSTRACT ]</div>
+              <p class="post-header__description" transition:name={`post-desc-${post.id}`}>{post.data.description}</p>
+            </div>
+          )}
+
+          <!-- 元数据统计（一体化底栏集成） -->
+          <div class="overview-stats-section">
+            <div class="overview-stat-item">
+              <span class="overview-stat-label">DATE / 发表日期</span>
+              <span class="overview-stat-value">{formatDate(post.data.date)}</span>
+            </div>
+            <div class="overview-stat-item">
+              <span class="overview-stat-label">READING TIME / 预计阅读</span>
+              <span class="overview-stat-value">{readTime} MINS</span>
+            </div>
+            <div class="overview-stat-item tags-item">
+              <span class="overview-stat-label">TAGS / 分类主题</span>
+              <div class="overview-stat-value overview-tags-pills">
+                {post.data.tags.map((tag) => (
+                  <span class="tag-pill-mini">{tag}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
         </div>
       </header>
 
-      <article class="prose-shell post-body">
+      <!-- 4. 主视觉封面图 (Feature Cover Image with Ambient Glow) -->
+      {post.data.cover && (
+        <div class="cover-wrapper">
+          <div class="cover-ambient-glow" style={`background-image: url(${post.data.cover})`} aria-hidden="true"></div>
+          <div class="cover-image-container">
+            <img class="cover-image" src={post.data.cover} alt={`${post.data.title} 封面图`} loading="eager" decoding="async" />
+          </div>
+        </div>
+      )}
+
+      <!-- 5. 极细科技艺术分割线 -->
+      <div class="fancy-divider" aria-hidden="true">
+        <span class="divider-line"></span>
+        <span class="divider-cross">+</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <!-- 6. 深度优化后的文章正文 -->
+      <article class="prose-shell post-body article-content">
         <Content />
       </article>
+
+      <!-- 7. 尾部 EOF 与 实验室署名栏 -->
+      <footer class="article-footer">
+        <div class="eof-sign" aria-hidden="true">
+          <span class="eof-line"></span>
+          <span class="eof-text">END OF FILE</span>
+          <span class="eof-line"></span>
+        </div>
+        
+        <div class="lab-signature">
+          <div class="sig-title">{site.name} · 实验室</div>
+          <div class="sig-meta">ENGINEERING, INTELLIGENCE AND ARCHITECTURE.</div>
+        </div>
+        
+        <!-- 底部返回链接 -->
+        <div class="bottom-navigation">
+          <a class="post-back bottom-back-link" href="/posts">
+            <span class="bottom-back-arrow">←</span>
+            <span>BACK TO LAB INDEX / 返回实验室列表</span>
+          </a>
+        </div>
+      </footer>
+
     </div>
   </section>
 </BaseLayout>
 
-<style>
-  .post-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
+<script>
+  // =================== 阅读进度条与一键复制脚本 ===================
+  const setupArticleUX = () => {
+    // 1. 阅读进度条滚动监听（挂载至详情页独立滚动容器上）
+    const progressBar = document.getElementById("progressBar");
+    const articleSection = document.querySelector(".lab-article-section");
+    
+    const updateProgressBar = () => {
+      if (!progressBar || !articleSection) return;
+      const scrollTop = articleSection.scrollTop;
+      const scrollHeight = articleSection.scrollHeight - articleSection.clientHeight;
+      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      progressBar.style.width = `${progress}%`;
+    };
 
-  .post-header {
-    margin-top: 28px;
-  }
+    articleSection?.addEventListener("scroll", updateProgressBar, { passive: true });
+    updateProgressBar(); // 初始调用
 
-  .post-header__title {
-    margin: 0;
-    font-size: clamp(2.5rem, 5vw, 4.4rem);
-    line-height: 1.04;
-    letter-spacing: -0.05em;
-  }
+    // 2. 动态注入代码块复制按钮
+    const injectCopyButtons = () => {
+      const preBlocks = document.querySelectorAll(".article-content pre");
+      
+      preBlocks.forEach((pre) => {
+        // 防止重复注入
+        if (pre.querySelector(".code-header-bar")) return;
 
-  .post-header__description {
-    margin: 18px 0 0;
-    color: var(--text-secondary);
-    font-size: 1.1rem;
-  }
+        // 提取语言类型
+        let lang = "CODE";
+        const codeEl = pre.querySelector("code");
+        if (codeEl) {
+          // Astro 通常将类名渲染为 language-xxx
+          const classes = Array.from(codeEl.classList);
+          const langClass = classes.find(c => c.startsWith("language-"));
+          if (langClass) {
+            lang = langClass.replace("language-", "");
+          }
+        }
 
-  .post-body {
-    margin-top: 42px;
-  }
-</style>
+        // 创建头部工具条
+        const headerBar = document.createElement("div");
+        headerBar.className = "code-header-bar";
+        headerBar.ariaHidden = "true";
+
+        const langLabel = document.createElement("span");
+        langLabel.className = "code-lang-label";
+        langLabel.textContent = lang;
+
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "code-copy-btn";
+        copyBtn.type = "button";
+        copyBtn.innerHTML = `
+          <svg class="copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span class="copy-text">COPY</span>
+        `;
+
+        headerBar.appendChild(langLabel);
+        headerBar.appendChild(copyBtn);
+        pre.appendChild(headerBar);
+
+        // 点击复制事件
+        copyBtn.addEventListener("click", async () => {
+          const textToCopy = codeEl ? codeEl.innerText : pre.innerText;
+          
+          try {
+            await navigator.clipboard.writeText(textToCopy);
+            
+            // 复制成功动画与视觉反馈
+            copyBtn.classList.add("copied");
+            const copyText = copyBtn.querySelector(".copy-text");
+            const copyIcon = copyBtn.querySelector(".copy-icon");
+            
+            if (copyText) copyText.textContent = "COPIED!";
+            if (copyIcon) {
+              copyIcon.innerHTML = `
+                <polyline points="20 6 9 17 4 12"></polyline>
+              `;
+            }
+
+            setTimeout(() => {
+              copyBtn.classList.remove("copied");
+              if (copyText) copyText.textContent = "COPY";
+              if (copyIcon) {
+                copyIcon.innerHTML = `
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                `;
+              }
+            }, 1800);
+
+          } catch (err) {
+            console.error("无法复制代码块内容: ", err);
+          }
+        });
+      });
+    };
+
+    injectCopyButtons();
+
+    // 3. 智能拦截返回键点击，优先执行 history.back()
+    const backLinks = document.querySelectorAll(".post-back");
+    backLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        // 如果我们是从列表页进入详情页的（即 referrer 包含 /posts），直接使用 history.back() 返回
+        // 这样 Astro 客户端路由和浏览器会自动极其完美地以“后退”过渡恢复先前的列表滚动高度，零误差！
+        if (document.referrer && document.referrer.includes("/posts")) {
+          e.preventDefault();
+          history.back();
+        }
+      });
+    });
+  };
+
+  // 挂载 UX 初始化（适配 Astro 客户端路由页面切换生命周期，确保每次路由跳转后均完美重建）
+  document.addEventListener("astro:page-load", setupArticleUX);
+</script>
+

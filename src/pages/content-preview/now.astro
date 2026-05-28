@@ -1,0 +1,374 @@
+---
+import "../../styles/global.css";
+import { site } from "../../data/site";
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Now Preview · {site.name}</title>
+    <script is:inline>
+      (function () {
+        try {
+          if (localStorage.getItem("theme") === "light") {
+            document.documentElement.classList.add("theme-preboot-light");
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <main class="now-preview-root">
+      <article class="now-editorial__detail">
+        <div class="now-editorial__detail-topbar">
+          <span class="now-editorial__detail-index" data-preview-index>ARCHIVE LOG / 01</span>
+
+          <button type="button" class="now-editorial__detail-close" data-preview-lock>
+            <span>RETURN / ESC</span>
+            <span class="now-editorial__close-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        <div class="now-editorial__detail-body">
+          <h1 class="now-editorial__detail-title" data-preview-title>随笔记录</h1>
+
+          <div class="now-editorial__detail-meta">
+            <div>
+              <span>Date / 日期</span>
+              <strong data-preview-date></strong>
+            </div>
+            <div>
+              <span>Type / 类别</span>
+              <strong>DATA LOG</strong>
+            </div>
+            <div>
+              <span>Mode / 模式</span>
+              <strong>TRANSMISSION</strong>
+            </div>
+            <div>
+              <span>Status / 状态</span>
+              <strong>Active / 归档</strong>
+            </div>
+          </div>
+
+          <div class="now-editorial__detail-columns">
+            <div class="now-editorial__detail-lead">
+              <div class="now-editorial__lead-card">
+                <h4 class="now-editorial__lead-heading">INTRODUCTION / 摘要</h4>
+                <p class="now-editorial__lead-text" data-preview-summary></p>
+              </div>
+            </div>
+
+            <div class="now-editorial__detail-copy">
+              <div class="prose-shell now-editorial__prose" data-preview-body></div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <script>
+      const htmlEl = document.documentElement;
+      if (htmlEl.classList.contains("theme-preboot-light")) {
+        document.body.classList.add("light-mode");
+        htmlEl.classList.remove("theme-preboot-light");
+      }
+
+      type PreviewPayload = {
+        html?: string;
+        title?: string;
+        summary?: string;
+        date?: string;
+        archiveIndex?: string;
+        selectedImageIndex?: number | null;
+      };
+
+      const titleEl = document.querySelector("[data-preview-title]");
+      const indexEl = document.querySelector("[data-preview-index]");
+      const summaryEl = document.querySelector("[data-preview-summary]");
+      const dateEl = document.querySelector("[data-preview-date]");
+      const bodyEl = document.querySelector("[data-preview-body]");
+
+      const formatPreviewDate = (value?: string) => {
+        const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return value || "";
+        return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
+      };
+
+      const applyPreview = (payload: PreviewPayload) => {
+        if (indexEl) indexEl.textContent = `ARCHIVE LOG / ${payload.archiveIndex || "01"}`;
+        if (titleEl) titleEl.textContent = payload.title || "随笔记录";
+        if (summaryEl) summaryEl.textContent = payload.summary || "";
+        if (dateEl) dateEl.textContent = formatPreviewDate(payload.date);
+        if (bodyEl) {
+          bodyEl.innerHTML = payload.html || "";
+          bodyEl.querySelectorAll(".is-selected").forEach((node) => node.classList.remove("is-selected"));
+          if (payload.selectedImageIndex !== null && payload.selectedImageIndex !== undefined) {
+            bodyEl.querySelector(`[data-image-index="${payload.selectedImageIndex}"]`)?.classList.add("is-selected");
+          }
+        }
+      };
+
+      window.addEventListener("message", (event) => {
+        if (event.data?.type === "admin-preview:update") {
+          applyPreview(event.data.payload || {});
+        }
+        if (event.data?.type === "admin-preview:scroll-to") {
+          const scrollRange = document.documentElement.scrollHeight - window.innerHeight;
+          if (scrollRange > 0) window.scrollTo({ top: scrollRange * Number(event.data.ratio || 0) });
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement | null;
+        const figure = target?.closest<HTMLElement>("[data-image-index]");
+        if (figure) {
+          event.preventDefault();
+          parent.postMessage(
+            {
+              type: "admin-preview:image-select",
+              index: Number(figure.dataset.imageIndex),
+            },
+            "*",
+          );
+          return;
+        }
+
+        const navigationTarget = target?.closest("a, form button, button[type='submit'], [data-preview-lock]");
+        if (navigationTarget) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+
+      document.addEventListener("submit", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      window.addEventListener("scroll", () => {
+        const scrollRange = document.documentElement.scrollHeight - window.innerHeight;
+        if (scrollRange <= 0) return;
+        parent.postMessage(
+          {
+            type: "admin-preview:scroll",
+            ratio: window.scrollY / scrollRange,
+          },
+          "*",
+        );
+      });
+
+      parent.postMessage({ type: "admin-preview:ready" }, "*");
+    </script>
+  </body>
+</html>
+
+<style>
+  html,
+  body {
+    min-height: 100%;
+    background: var(--bg);
+  }
+
+  .now-preview-root {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text-primary);
+  }
+
+  .now-editorial__detail {
+    min-height: 100vh;
+    padding: 96px 24px 80px;
+  }
+
+  .now-editorial__detail-topbar,
+  .now-editorial__detail-body {
+    width: min(1200px, calc(100vw - 48px));
+    margin-inline: auto;
+  }
+
+  .now-editorial__detail-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 48px;
+  }
+
+  .now-editorial__detail-index {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__detail-close {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 40px;
+    padding: 0 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    background: transparent;
+    color: inherit;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.70rem;
+    font-weight: 500;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    cursor: default;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  body.light-mode .now-editorial__detail-close {
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  .now-editorial__close-icon {
+    display: flex;
+  }
+
+  .now-editorial__detail-title {
+    margin: 0 0 16px;
+    font-size: clamp(2.0rem, 4.5vw, 3.3rem);
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+  }
+
+  .now-editorial__detail-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin-top: 24px;
+    padding: 22px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .now-editorial__detail-meta > div {
+    display: grid;
+    gap: 6px;
+  }
+
+  .now-editorial__detail-meta > div + div {
+    padding-left: 24px;
+    border-left: 1px solid var(--border);
+    opacity: 0.85;
+  }
+
+  .now-editorial__detail-meta span {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__detail-meta strong {
+    font-size: clamp(0.9rem, 1.4vw, 1.2rem);
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+
+  .now-editorial__detail-columns {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+    gap: 56px;
+    margin-top: 36px;
+    align-items: start;
+  }
+
+  .now-editorial__lead-card {
+    position: sticky;
+    top: 40px;
+    padding-left: 18px;
+    border-left: 2px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  }
+
+  .now-editorial__lead-heading {
+    margin: 0 0 10px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .now-editorial__lead-text {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.94rem;
+    line-height: 1.65;
+    font-weight: 400;
+  }
+
+  .now-editorial__prose {
+    font-size: 1.05rem;
+    line-height: 1.85;
+    color: var(--text-secondary);
+  }
+
+  .now-editorial__prose :global(p) {
+    margin-bottom: 24px;
+  }
+
+  .now-editorial__prose :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .content-image[data-image-index] {
+    cursor: pointer;
+  }
+
+  .content-image.is-selected {
+    outline: 3px solid var(--accent);
+    outline-offset: 6px;
+  }
+
+  @media (max-width: 980px) {
+    .now-editorial__detail-meta {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .now-editorial__detail-meta > div + div {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .now-editorial__detail-columns {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .now-editorial__detail {
+      padding-top: 84px;
+    }
+
+    .now-editorial__detail-topbar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .now-editorial__detail-meta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

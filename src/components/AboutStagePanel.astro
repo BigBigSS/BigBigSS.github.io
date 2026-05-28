@@ -189,7 +189,13 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     };
 
     // Reveal only starts from the poem text itself.
-    trigger.addEventListener("mouseenter", revealStage);
+    const onTriggerOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && target.hasAttribute("data-poetry-line")) {
+        revealStage();
+      }
+    };
+    trigger.addEventListener("mouseover", onTriggerOver as EventListener);
     stage.addEventListener("mouseleave", hideStage);
 
     // focus support for keyboard accessibility
@@ -271,7 +277,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
       "beforeunload",
       () => {
         if (frame) window.cancelAnimationFrame(frame);
-        trigger.removeEventListener("mouseenter", revealStage);
+        trigger.removeEventListener("mouseover", onTriggerOver as EventListener);
         stage.removeEventListener("mouseleave", hideStage);
         trigger.removeEventListener("focus", revealStage);
         trigger.removeEventListener("blur", hideStage);
@@ -409,7 +415,6 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     line-height: 0.95;
     letter-spacing: -0.05em;
     text-align: center;
-    cursor: pointer;
   }
 
   .about-stage__trigger:global(.is-stacked) {
@@ -420,6 +425,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
   .about-stage__trigger span {
     display: block;
     white-space: nowrap;
+    cursor: pointer;
   }
 
   .about-stage__trigger:focus-visible {

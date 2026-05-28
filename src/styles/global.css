@@ -129,9 +129,13 @@
   --wave-progress: -20%;
   --wave-opacity: 0;
 
-  --hero-noise-opacity: 0.035;
+  --noise-blend: overlay;
+  --noise-opacity: 0.04;
+  --hero-noise-opacity: 0.04;
   --ambient-glow: radial-gradient(circle at 70% 50%, rgba(30,15,50,0.1) 0%, rgba(0,0,0,0) 60%);
-  --dim-opacity: 0.14;
+  --dim-opacity: 0.12;
+  --dim-filter: grayscale(0.8) brightness(0.4) blur(1px);
+  --ribbon-shadow: inset -20px 0 60px rgba(0,0,0,0.8), -40px 0 100px rgba(0,0,0,1);
 
   --ui-text-main: #ffffff;
   --ui-text-muted: rgba(255, 255, 255, 0.6);
@@ -142,7 +146,8 @@
   --ui-gradient-to: rgba(255, 255, 255, 0.3);
 }
 
-html.theme-preboot-light body,
+html.theme-preboot-light,
+html.light-mode,
 body.light-mode {
   --bg: #f6f7f9;
   --bg-elevated: #ffffff;
@@ -152,9 +157,13 @@ body.light-mode {
   --text-tertiary: rgba(0, 0, 0, 0.45);
   --border: rgba(0, 0, 0, 0.12);
 
-  --hero-noise-opacity: 0.018;
+  --noise-blend: multiply;
+  --noise-opacity: 0.02;
+  --hero-noise-opacity: 0.02;
   --ambient-glow: radial-gradient(circle at 70% 50%, rgba(240,230,220,0.4) 0%, rgba(255,255,255,0) 60%);
-  --dim-opacity: 0.045;
+  --dim-opacity: 0.06;
+  --dim-filter: grayscale(0) brightness(1.0) contrast(1.0) blur(1px);
+  --ribbon-shadow: inset 15px 0 35px rgba(255,255,255,0.7), inset -15px 0 45px rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.04);
 
   --ui-text-main: #1a1a1a;
   --ui-text-muted: rgba(0, 0, 0, 0.6);
@@ -168,7 +177,7 @@ body.light-mode {
 html {
   background: var(--bg);
   color-scheme: dark;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   transition: background-color 360ms var(--ease-cinema);
 }
 
@@ -816,23 +825,26 @@ body.theme-switching .nav-inner {
 
 /* Suppress underlying UI transitions natively if the GPU view transition is running to prevent color ghosting */
 html.is-view-transitioning,
-html.is-view-transitioning * {
+html.is-view-transitioning *,
+html.is-view-transitioning::view-transition {
   transition: none !important;
+  scroll-behavior: auto !important;
 }
 
 @supports (view-transition-name: none) {
-  ::view-transition-group(root) {
+  /* 仅在主题切换时应用圆形扩散 */
+  html.is-view-transitioning::view-transition-group(root) {
     animation-duration: 0.8s;
     animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
   }
 
-  ::view-transition-new(root) {
+  html.is-view-transitioning::view-transition-new(root) {
     animation: clip-reveal 0.8s cubic-bezier(0.76, 0, 0.24, 1);
     mix-blend-mode: normal;
     z-index: 2;
   }
   
-  ::view-transition-old(root) {
+  html.is-view-transitioning::view-transition-old(root) {
     animation: none;
     z-index: 1;
   }
@@ -844,6 +856,47 @@ html.is-view-transitioning * {
     100% {
       clip-path: circle(150% at var(--click-x, 50vw) var(--click-y, 50vh));
     }
+  }
+
+  /* === 电影级文章视图过渡转场定制 === */
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-group(post-title),
+    ::view-transition-group(post-no),
+    ::view-transition-group(post-desc) {
+      animation-duration: 480ms;
+      animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  
+    /* 非主题切换时，默认的 root 交叉淡入淡出及轻盈向上浮现 */
+    /* 已根据用户意见注释，还原最纯净的浏览器原位交叉淡入淡出，从而完美放大飞入飞出（Morphing）的动作分量 */
+    /* 显式定义非主题切换时的 root 转场：锁定为最纯粹的交叉淡入淡出，从根本上清除由于滚动高度变化产生的视口向上滑行拉扯感 */
+    html:not(.is-view-transitioning)::view-transition-group(root) {
+      animation: none !important;
+      mix-blend-mode: normal !important;
+    }
+    html:not(.is-view-transitioning)::view-transition-old(root) {
+      animation: 240ms cubic-bezier(0.16, 1, 0.3, 1) both fade-out;
+    }
+    html:not(.is-view-transitioning)::view-transition-new(root) {
+      animation: 320ms cubic-bezier(0.16, 1, 0.3, 1) both fade-in;
+    }
+  }
+  
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(16px); }
+    to { transform: translateY(0); }
+  }
+
+  ::view-transition {
+    background-color: var(--bg);
   }
 }
 
@@ -861,3 +914,586 @@ html.is-view-transitioning * {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   LAB ARTICLE DETAIL PAGE STYLES (实验室文章详情页专属样式)
+   ========================================================================== */
+.reading-progress-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: transparent;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.reading-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(to right, var(--accent), var(--accent-cool));
+  transition: width 0.1s ease-out;
+}
+
+.lab-article-section {
+  --lab-line: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --lab-line-soft: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --abstract-bg: color-mix(in srgb, var(--text-primary) 1.5%, transparent);
+  --btn-glass-bg: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --btn-glass-hover: color-mix(in srgb, var(--text-primary) 9%, transparent);
+
+  /* 物理重塑：独立的全屏滚动层，完美遮挡底部的列表页，维持全局滚动条静止不变，直击闪烁源头 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow-y: auto;
+  background-color: var(--bg);
+  z-index: 100;
+  padding: clamp(72px, 10vw, 110px) 0 clamp(80px, 12vw, 140px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.article-container {
+  width: min(850px, calc(100vw - 48px));
+  margin-inline: auto;
+}
+
+/* =================== 极简实验室学术期刊式单线顶栏 =================== */
+.lab-article-nav-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--lab-line);
+  border-bottom: 1px solid var(--lab-line);
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: clamp(36px, 7vw, 56px);
+}
+
+.btn-text-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  transition: all 0.3s var(--ease-cinema);
+  font-weight: 600;
+}
+
+.back-arrow-char {
+  display: inline-block;
+  transition: transform 0.3s var(--ease-cinema);
+}
+
+.btn-text-back:hover {
+  color: var(--text-primary);
+}
+
+.btn-text-back:hover .back-arrow-char {
+  transform: translateX(-4px);
+}
+
+/* 顶栏只保留干净的返回链接，其余冗余子选择器已被清理 */
+
+/* =================== 精美头部与统计仪表盘 =================== */
+.article-header {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header-prefix {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.eyebrow-no {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.eyebrow-sep {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.eyebrow-category {
+  color: var(--text-tertiary);
+  letter-spacing: 0.18em;
+}
+
+.post-header__title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+/* =================== 合并一体化的学术总览面板 =================== */
+.academic-overview-panel {
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+  border-top: 1px dashed var(--lab-line);
+  border-bottom: 1px dashed var(--lab-line);
+  padding: 24px clamp(16px, 4vw, 32px);
+  background: var(--abstract-bg);
+}
+
+.overview-abstract-section {
+  margin-bottom: 24px;
+}
+
+.overview-abstract-title {
+  color: var(--text-primary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  margin-bottom: 10px;
+}
+
+.post-header__description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  text-align: justify;
+}
+
+.overview-stats-section {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  border-top: 1px solid var(--lab-line-soft);
+  padding-top: 20px;
+}
+
+.overview-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.overview-stat-item:not(:last-child) {
+  border-right: 1px dashed var(--lab-line-soft);
+  padding-right: 12px;
+}
+
+.overview-stat-label {
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.overview-stat-value {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.overview-tags-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-pill-mini {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--lab-line-soft);
+  background: var(--btn-glass-bg);
+  color: var(--text-secondary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* =================== 智能封面图与发光效果 =================== */
+.cover-wrapper {
+  position: relative;
+  margin: clamp(32px, 6vw, 48px) 0;
+  width: 100%;
+  isolation: isolate;
+}
+
+.cover-ambient-glow {
+  position: absolute;
+  inset: 12px;
+  border-radius: var(--radius-lg);
+  background-size: cover;
+  background-position: center;
+  filter: blur(44px) saturate(1.4);
+  opacity: 0.26;
+  z-index: -1;
+  transform: translate3d(0, 0, 0);
+  will-change: filter;
+}
+
+.cover-image-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--lab-line);
+  box-shadow: var(--shadow-hard);
+  aspect-ratio: 16 / 9;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s var(--ease-cinema);
+}
+
+.cover-wrapper:hover .cover-image {
+  transform: scale(1.025);
+}
+
+/* =================== 科技艺术分界线 =================== */
+.fancy-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin: clamp(32px, 7vw, 56px) 0;
+}
+
+.divider-line {
+  flex-grow: 1;
+  height: 1px;
+  background: linear-gradient(
+    to var(--dir, right), 
+    var(--lab-line-soft) 40%, 
+    transparent
+  );
+}
+
+.divider-line:first-child {
+  --dir: left;
+}
+
+.divider-cross {
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+/* =================== 正文排版深度微调 =================== */
+.article-content {
+  color: var(--text-secondary);
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+/* 二级标题加左线斜杠 */
+.article-content h2 {
+  position: relative;
+  margin: 48px 0 20px;
+  padding-left: 18px;
+  color: var(--text-primary);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.article-content h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, var(--accent), var(--accent-cool));
+}
+
+/* 三级标题 */
+.article-content h3 {
+  margin: 32px 0 14px;
+  color: var(--text-primary);
+  font-size: 1.22rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* 段落间距与文字比例 */
+.article-content p {
+  margin-bottom: 24px;
+}
+
+/* 更加高级的代码块设计，在JS中我们将注入头部 */
+.article-content pre {
+  position: relative;
+  margin: 28px 0;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #0d0e12 !important; /* 强制极简深色背景 */
+  padding: 44px 20px 20px 20px !important; /* 留出顶部注入头部的位置 */
+  box-shadow: var(--shadow-hard); /* 深色投影 */
+  color: #e4e4e7 !important; /* 强制基础文字色 */
+}
+
+.article-content code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+/* 行内代码微调 */
+.article-content p > code,
+.article-content li > code {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
+  padding: 0.15em 0.38em;
+  color: var(--text-primary);
+}
+
+/* 引用块优雅升级 */
+.article-content blockquote {
+  position: relative;
+  margin: 32px 0;
+  padding: 16px 24px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 2%, transparent);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.article-content blockquote p {
+  margin: 0;
+}
+
+/* 列表微调 */
+.article-content ul,
+.article-content ol {
+  padding-left: 24px;
+  margin-bottom: 24px;
+}
+
+.article-content li {
+  margin-bottom: 8px;
+}
+
+/* 复制按钮样式 (动态注入) */
+.code-header-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: #14161d !important; /* 强制深色头部 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important; /* 亮色精细线 */
+  border-radius: 16px 16px 0 0;
+}
+
+.code-lang-label {
+  color: rgba(255, 255, 255, 0.42) !important;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.42) !important;
+  cursor: pointer;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  transition: all 0.2s var(--ease-cinema);
+}
+
+.code-copy-btn:hover {
+  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.code-copy-btn.copied {
+  color: var(--accent-cool) !important;
+}
+
+/* =================== 页脚结语与底部导航 =================== */
+.article-footer {
+  margin-top: clamp(48px, 10vw, 88px);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.eof-sign {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.eof-line {
+  width: 28px;
+  height: 1px;
+  background: var(--lab-line-soft);
+}
+
+.eof-text {
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  opacity: 0.5;
+}
+
+.lab-signature {
+  text-align: center;
+  padding: 24px 0;
+  border-top: 1px solid var(--lab-line-soft);
+  border-bottom: 1px solid var(--lab-line-soft);
+}
+
+.sig-title {
+  color: var(--text-primary);
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.sig-meta {
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+}
+
+/* 底部学术返回链接 */
+.bottom-navigation {
+  display: flex;
+  justify-content: center;
+  margin-top: clamp(24px, 5vw, 36px);
+  border-top: 1px dashed var(--lab-line-soft);
+  padding-top: clamp(24px, 5vw, 36px);
+}
+
+.bottom-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: all 0.3s var(--ease-cinema);
+}
+
+.bottom-back-arrow {
+  display: inline-block;
+  transition: transform 0.3s var(--ease-cinema);
+}
+
+.bottom-back-link:hover {
+  color: var(--text-primary);
+}
+
+.bottom-back-link:hover .bottom-back-arrow {
+  transform: translateX(-4px);
+}
+
+/* =================== 响应式适配 =================== */
+@media (max-width: 720px) {
+  .lab-article-section {
+    padding-block: clamp(48px, 8vw, 72px);
+  }
+
+  .academic-overview-panel {
+    padding-inline: 16px;
+  }
+
+  .overview-stats-section {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .overview-stat-item:not(:last-child) {
+    border-right: none;
+    border-bottom: 1px dashed var(--lab-line-soft);
+    padding-right: 0;
+    padding-bottom: 12px;
+  }
+
+  .lab-article-nav-bar {
+    padding: 12px 0;
+  }
+
+  .cover-image-container {
+    aspect-ratio: 4 / 3;
+  }
+
+  .cover-ambient-glow {
+    filter: blur(28px);
+    opacity: 0.22;
+  }
+
+  .article-content h2 {
+    font-size: 1.35rem;
+    margin: 36px 0 16px;
+  }
+
+  .article-content pre {
+    padding: 44px 14px 14px 14px !important;
+  }
+}
+
+/* =================== 原地静态渐现呼吸动画 =================== */
+@keyframes entry-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.lab-article-section,
+.lab-section {
+  animation: entry-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
