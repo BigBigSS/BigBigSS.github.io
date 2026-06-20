@@ -902,6 +902,11 @@ const cardItems: BarrelGalleryItem[] = items.length
     };
 
     function startAnimation() {
+      // 自愈：异步 import('three') 期间可能错过 page-scroll-end 事件，使 isScrollSuspended 永久为真。
+      // 启动前用实时的 is-scrolling 类状态纠正，避免图片桶加载完成后停留在空白挂起态。
+      if (isScrollSuspended && !document.body.classList.contains("is-scrolling")) {
+        isScrollSuspended = false;
+      }
       if (isRunning || disposed || isScrollSuspended || document.visibilityState === "hidden") return;
       lastFrameTime = performance.now();
       isRunning = true;
