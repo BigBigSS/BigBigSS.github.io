@@ -60,18 +60,11 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isMobile = coarsePointer || window.innerWidth < 768;
   const poemLengthLimit = 18;
-  const poemTypes = ["五言绝句", "七言绝句"];
   const localPoemSeeds = [
     ["行到水穷处", "坐看云起时"],
     ["山中何所有", "岭上多白云"],
   ];
   const fallbackPoem = ["春有百花秋有月", "夏有凉风冬有雪"];
-
-  type PoetryPayload = {
-    data?: {
-      content?: string[];
-    };
-  };
 
   const cleanPoemLine = (line: string) =>
     line
@@ -103,16 +96,24 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     trigger.style.setProperty("--poem-font-size", `${nextSize}px`);
   };
 
-  const fetchPoemLines = async () => {
-    const type = poemTypes[Math.floor(Math.random() * poemTypes.length)];
-    const response = await fetch(
-      `/api/random-poem.json?lang=zh-Hans&type=${encodeURIComponent(type)}`,
-      {
+  // 一次性加载构建时生成的诗词池（静态文件），失败则回退到本地种子。
+  let poemPoolPromise: Promise<string[][]> | null = null;
+  const loadPoemPool = () => {
+    if (!poemPoolPromise) {
+      poemPoolPromise = fetch("/api/random-poem.json", {
         headers: { accept: "application/json" },
-      },
-    );
-    const payload = (await response.json()) as PoetryPayload;
-    return pickTwoLines(payload.data?.content);
+      })
+        .then((response) => response.json())
+        .then((payload: { poems?: string[][] }) => {
+          const poems = Array.isArray(payload?.poems) ? payload.poems : [];
+          const cleaned = poems
+            .map((lines) => pickTwoLines(lines))
+            .filter((lines) => lines.length >= 2);
+          return cleaned.length ? cleaned : localPoemSeeds.map((lines) => [...lines]);
+        })
+        .catch(() => localPoemSeeds.map((lines) => [...lines]));
+    }
+    return poemPoolPromise;
   };
 
   const applyStagePoem = (stage: HTMLElement, lines: string[]) => {
@@ -142,34 +143,50 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     const lensRoot = lens?.parentElement as HTMLElement | null;
     if (!card || !trigger) return;
     const trackingRoot = stage.closest<HTMLElement>(".about-stage") ?? stage;
-    const poemQueue = localPoemSeeds.map((lines) => [...lines]);
-    let isPoemPrefetching = false;
+    // 诗词池：客户端只拉一次，之后每次切换在本地随机挑（避免与上一首重复），循环不停。
+    const introLineKey = Array.from(
+      trigger.querySelectorAll<HTMLElement>("[data-poetry-line]"),
+    )
+      .map((item) => item.textContent || "")
+      .filter(Boolean)
+      .join("|");
+    let poemPool: string[][] = localPoemSeeds.map((lines) => [...lines]);
+    let poemOrder: number[] = [];
+    let lastPoemKey = introLineKey;
 
-    const prefetchPoem = async () => {
-      if (isPoemPrefetching) return;
-      isPoemPrefetching = true;
-      try {
-        const lines = await fetchPoemLines();
-        poemQueue.push(lines);
-        while (poemQueue.length > 3) poemQueue.shift();
-      } catch {
-        if (poemQueue.length < 2) {
-          poemQueue.push([...fallbackPoem]);
-        }
-      } finally {
-        isPoemPrefetching = false;
+    const reshufflePoemOrder = () => {
+      poemOrder = poemPool.map((_, index) => index);
+      for (let i = poemOrder.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [poemOrder[i], poemOrder[j]] = [poemOrder[j], poemOrder[i]];
+      }
+      // 新一轮的第一首避免与刚展示过的重复
+      if (poemOrder.length > 1 && poemPool[poemOrder[0]].join("|") === lastPoemKey) {
+        [poemOrder[0], poemOrder[1]] = [poemOrder[1], poemOrder[0]];
       }
     };
 
-    const showQueuedPoem = () => {
-      const lines = poemQueue.shift() ?? fallbackPoem;
-      applyStagePoem(stage, lines);
-      void prefetchPoem();
+    const nextPoemLines = () => {
+      if (!poemOrder.length) reshufflePoemOrder();
+      const index = poemOrder.shift();
+      const lines = (index != null ? poemPool[index] : null) ?? fallbackPoem;
+      lastPoemKey = lines.join("|");
+      return lines;
     };
 
-    void prefetchPoem();
+    const showNextPoem = () => {
+      applyStagePoem(stage, nextPoemLines());
+    };
+
+    void loadPoemPool().then((loaded) => {
+      if (loaded.length) {
+        poemPool = loaded;
+        poemOrder = [];
+      }
+    });
+
     window.addEventListener("theme-change", () => {
-      showQueuedPoem();
+      showNextPoem();
     });
 
     window.addEventListener("resize", () => {
