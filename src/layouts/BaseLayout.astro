@@ -202,6 +202,31 @@ const preloadList = [...new Set(preloadImages)].slice(0, 12);
       // 注册到 Astro page-load 事件，兼容客户端路由器页面切换生命周期
       document.addEventListener("astro:page-load", initThemeAndEvents);
 
+      // 全局滚动调度（只注册一次，跨客户端路由持久）：
+      // 滚动期间派发 page-scroll-start / page-scroll-end 并标记 body.is-scrolling，
+      // 让重型可视组件（图片桶 WebGL、3D 卡片轮播）暂停 rAF，并临时关闭 nav 的实时背景模糊，
+      // 避免滚动重绘与动画循环争抢主线程造成卡顿。
+      const scrollWindow = window as typeof window & { __pageScrollBound?: boolean };
+      if (!scrollWindow.__pageScrollBound) {
+        scrollWindow.__pageScrollBound = true;
+        let isScrolling = false;
+        let scrollEndTimer = 0;
+        const onPageScroll = () => {
+          if (!isScrolling) {
+            isScrolling = true;
+            document.body.classList.add("is-scrolling");
+            window.dispatchEvent(new CustomEvent("page-scroll-start"));
+          }
+          if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
+          scrollEndTimer = window.setTimeout(() => {
+            isScrolling = false;
+            document.body.classList.remove("is-scrolling");
+            window.dispatchEvent(new CustomEvent("page-scroll-end"));
+          }, 160);
+        };
+        window.addEventListener("scroll", onPageScroll, { passive: true });
+      }
+
       // 全局记忆列表页滚动高度的常驻锁，用于在物理隔离图层期间将全局滚动条强制焊接在原位
       (window as any).__savedScrollY = (window as any).__savedScrollY || 0;
 

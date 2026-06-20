@@ -134,7 +134,7 @@
   --hero-noise-opacity: 0.04;
   --ambient-glow: radial-gradient(circle at 70% 50%, rgba(30,15,50,0.1) 0%, rgba(0,0,0,0) 60%);
   --dim-opacity: 0.12;
-  --dim-filter: grayscale(0.8) brightness(0.4) blur(1px);
+  --dim-filter: grayscale(0.8) brightness(0.4);
   --ribbon-shadow: inset -20px 0 60px rgba(0,0,0,0.8), -40px 0 100px rgba(0,0,0,1);
 
   --ui-text-main: #ffffff;
@@ -162,7 +162,7 @@ body.light-mode {
   --hero-noise-opacity: 0.02;
   --ambient-glow: radial-gradient(circle at 70% 50%, rgba(240,230,220,0.4) 0%, rgba(255,255,255,0) 60%);
   --dim-opacity: 0.06;
-  --dim-filter: grayscale(0) brightness(1.0) contrast(1.0) blur(1px);
+  --dim-filter: none;
   --ribbon-shadow: inset 15px 0 35px rgba(255,255,255,0.7), inset -15px 0 45px rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.04);
 
   --ui-text-main: #1a1a1a;
@@ -639,7 +639,6 @@ body.light-mode .tag-pill:hover {
   z-index: 200;
   overflow: hidden;
   isolation: isolate;
-  will-change: transform;
   color: var(--ui-text-main);
   transition:
     background-color 220ms ease,
@@ -796,6 +795,12 @@ body.is-scrolling .theme-toggle,
 body.is-scrolling .theme-toggle .icon-sun,
 body.is-scrolling .theme-toggle .icon-moon {
   transition: none !important;
+}
+
+/* 滚动期间关闭昂贵的实时背景模糊（每帧都要重算），停止滚动后自动恢复 */
+body.is-scrolling .nav-inner {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 
@@ -1145,7 +1150,6 @@ html.is-view-transitioning::view-transition {
   opacity: 0.26;
   z-index: -1;
   transform: translate3d(0, 0, 0);
-  will-change: filter;
 }
 
 .cover-image-container {

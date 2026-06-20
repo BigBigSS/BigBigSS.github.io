@@ -141,7 +141,7 @@ const cardItems: BarrelGalleryItem[] = items.length
     camera.position.set(0, 0, 24);
 
     const getPixelRatio = () =>
-      Math.min(window.devicePixelRatio || 1, window.matchMedia("(max-width: 700px)").matches ? 1.5 : 2);
+      Math.min(window.devicePixelRatio || 1, 1.5);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -409,7 +409,7 @@ const cardItems: BarrelGalleryItem[] = items.length
               return;
             }
 
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
             texture.generateMipmaps = true;
             texture.minFilter = THREE.LinearMipmapLinearFilter;
             texture.magFilter = THREE.LinearFilter;
@@ -568,7 +568,7 @@ const cardItems: BarrelGalleryItem[] = items.length
             texture.dispose();
             return;
           }
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
           texture.generateMipmaps = true;
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
