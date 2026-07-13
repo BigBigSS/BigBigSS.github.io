@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type liquide — ripple text distortion</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #efedea; }
+  body { color: #141414; font-family: ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .ui { position: fixed; z-index: 1; pointer-events: none; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .kicker { left: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; animation: fadeUp 1.2s ease both; }
+  .index { right: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; }
+  .plate { left: 4%; bottom: 9%; animation: fadeUp 1.2s 0.15s ease both; }
+  .plate h1 { margin: 0; font-size: clamp(28px, 2.4vw, 40px); font-weight: 400; line-height: 1; }
+  .plate .sub { margin-top: 10px; font-size: 11px; letter-spacing: 0.14em; color: rgba(20,20,20,0.55); }
+  .hint { right: 4%; bottom: 5%; font-size: 10px; letter-spacing: 0.2em; color: rgba(20,20,20,0.45); }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="ui kicker">ÉTUDES WEBGL — TROIS ESSAIS</div>
+<div class="ui index">02 / 03</div>
+<div class="ui plate">
+  <h1>Type liquide</h1>
+  <div class="sub">ripple distortion · red ghost</div>
+</div>
+<div class="ui hint">SWEEP ACROSS THE TEXT — 划过文字</div>
+
+<script>
+(() => {
+  const INK = '#7a3527';
+  const SPEED = 1;
+
+  const canvas = document.getElementById('fx');
+  const gl = canvas.getContext('webgl', { antialias: false });
+  if (!gl) return;
+
+  const mkProg = (vsSrc, fsSrc) => {
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  };
+
+  const prog = mkProg(
+    'attribute vec2 aPos;varying vec2 vUv;void main(){vUv=aPos*0.5+0.5;gl_Position=vec4(aPos,0.0,1.0);}',
+    `precision highp float;
+    uniform sampler2D uTex;uniform vec2 uRes;uniform float uT;uniform vec2 uMouse;uniform float uAmp;uniform vec3 uInk;
+    varying vec2 vUv;
+    void main(){
+      vec2 asp=vec2(uRes.x/uRes.y,1.0);
+      // 把 2:1 的文字纹理按 contain 规则放进画布，居中
+      vec2 uv=vUv;
+      float texAsp=2.0;float canAsp=uRes.x/uRes.y;
+      if(canAsp>texAsp){uv.x=(uv.x-0.5)*canAsp/texAsp+0.5;}
+      else{uv.y=(uv.y-0.5)*texAsp/canAsp+0.5;}
+      vec2 dvec=(vUv-uMouse)*asp;
+      float d=length(dvec);
+      float rip=sin(d*28.0-uT*3.2)*exp(-d*4.5);
+      vec2 dir=normalize(dvec+vec2(0.0001));
+      vec2 duv=dir*rip*0.022*uAmp;
+      duv.y+=sin(uv.x*6.0+uT*0.7)*0.006;
+      duv.x+=sin(uv.y*7.0-uT*0.6)*0.004;
+      float a=texture2D(uTex,uv+duv).a;
+      float a2=texture2D(uTex,uv+duv*2.6).a;
+      vec3 paper=vec3(0.949,0.940,0.925);
+      vec3 ghost=mix(uInk,paper,0.30);
+      vec3 col=mix(paper,ghost,clamp(a2-a,0.0,1.0)*0.85);
+      col=mix(col,vec3(0.11,0.096,0.088),a);
+      col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-0.5)*0.02;
+      gl_FragColor=vec4(col,1.0);
+    }`);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  const makeTextTexture = () => {
+    const tc = document.createElement('canvas');
+    tc.width = 2048; tc.height = 1024;
+    const x = tc.getContext('2d');
+    x.clearRect(0, 0, 2048, 1024);
+    x.fillStyle = '#000';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = "400 236px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+    x.fillText('Creation is', 1024, 380);
+    x.fillText('Vitality.', 1024, 660);
+    x.font = '400 34px ui-sans-serif, sans-serif';
+    x.letterSpacing = '10px';
+    x.fillText('É T U D E  0 2', 1024, 872);
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tc);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  };
+
+  let tex = makeTextTexture();
+  // 首帧可能用后备字体度量渲染，字体就绪后重绘一次
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+    gl.deleteTexture(tex);
+    tex = makeTextTexture();
+  });
+
+  const u = {
+    res: gl.getUniformLocation(prog, 'uRes'),
+    t: gl.getUniformLocation(prog, 'uT'),
+    mouse: gl.getUniformLocation(prog, 'uMouse'),
+    amp: gl.getUniformLocation(prog, 'uAmp'),
+    ink: gl.getUniformLocation(prog, 'uInk'),
+  };
+
+  const hexRgb = (h) => {
+    h = h.replace('#', '');
+    return [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+  };
+  const ink = hexRgb(INK);
+
+  const resize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // 某些嵌入环境首帧布局尺寸为 0，取不到时退回 window 尺寸
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    canvas.width = Math.max(2, w * dpr);
+    canvas.height = Math.max(2, h * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  };
+  window.addEventListener('resize', resize);
+  resize();
+
+  const m = { tx: -5, ty: -5, x: -5, y: -5, vel: 0, energy: 0 };
+  window.addEventListener('pointermove', (e) => {
+    const nx = e.clientX / window.innerWidth;
+    const ny = 1 - e.clientY / window.innerHeight;
+    m.vel = Math.min(1.5, m.vel + Math.hypot(nx - m.tx, ny - m.ty) * 4);
+    m.tx = nx; m.ty = ny;
+  });
+
+  const t0 = performance.now();
+  const frame = () => {
+    const t = (performance.now() - t0) / 1000 * SPEED;
+    m.x += (m.tx - m.x) * 0.07;
+    m.y += (m.ty - m.y) * 0.07;
+    m.vel *= 0.94;
+    m.energy += (Math.min(1, m.vel) - m.energy) * 0.06;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform2f(u.res, canvas.width, canvas.height);
+    gl.uniform1f(u.t, t);
+    gl.uniform2f(u.mouse, m.x, m.y);
+    gl.uniform1f(u.amp, 0.3 + m.energy * 2.6);
+    gl.uniform3f(u.ink, ink[0], ink[1], ink[2]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

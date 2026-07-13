@@ -1,20 +1,20 @@
 import rss from "@astrojs/rss";
 import { getCollection } from "astro:content";
 import { site } from "../data/site";
-import { publishedPosts } from "../lib/content";
+import { sortByDateDesc } from "../lib/content";
 
 export async function GET(context: { site: URL | undefined }) {
-  const posts = publishedPosts(await getCollection("posts"));
+  const entries = sortByDateDesc(await getCollection("now"));
 
   return rss({
-    title: `${site.name} · Writing`,
+    title: `${site.name} · Now`,
     description: site.description,
     site: context.site ?? site.url,
-    items: posts.map((post) => ({
-      title: post.data.title,
-      description: post.data.description,
-      pubDate: post.data.date,
-      link: `/posts/${post.id}`,
+    items: entries.map((entry) => ({
+      title: entry.data.title ?? entry.data.summary,
+      description: entry.data.summary,
+      pubDate: entry.data.date,
+      link: `/now`,
     })),
   });
 }

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>液态海报 · Liquid Ink</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #F5333F; }
+  canvas { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #hint {
+    position: fixed; right: 20px; bottom: 16px;
+    font: 11px/1.6 "SF Mono", ui-monospace, Menlo, monospace;
+    color: rgba(0,0,0,0.55); letter-spacing: 0.12em;
+    pointer-events: none; user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hint">MOVE — 拖拽墨迹 · CLICK — 涟漪</div>
+
+<script>
+/* ============================================================
+   Liquid Ink Poster — 瑞士海报排版 + 液态扭曲 WebGL 特效 (hui)
+   配色:红 #F5333F / 黑 / 白 / 一点青
+   ============================================================ */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl', { antialias: false });
+
+const DPR = Math.min(devicePixelRatio || 1, 2);
+
+/* ---------- 离屏 2D 画布:绘制海报版面(作为纹理) ---------- */
+const texCanvas = document.createElement('canvas');
+const tctx = texCanvas.getContext('2d');
+
+const RED   = '#F5333F';
+const RED_D = '#D9232F';   // 深一档的红,做幽灵文字
+const INK   = '#0d0b0c';
+const PAPER = '#FBF7F2';
+const TEAL  = '#2BD9B7';
+
+function roundedBar(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPoster() {
+  const W = texCanvas.width, H = texCanvas.height;
+  const ctx = tctx;
+  ctx.clearRect(0, 0, W, H);
+
+  /* 底色 */
+  ctx.fillStyle = RED;
+  ctx.fillRect(0, 0, W, H);
+
+  /* 幽灵滚动字 —— 深红大字铺满背景 */
+  const ghost = 'Developer Designer Creator Learner ';
+  ctx.fillStyle = RED_D;
+  const gSize = H * 0.16;
+  ctx.font = `600 ${gSize}px Helvetica, Arial, sans-serif`;
+  ctx.textBaseline = 'alphabetic';
+  for (let r = 0; r < 6; r++) {
+    const y = H * 0.16 + r * gSize * 1.12;
+    const shift = -(r * W * 0.13) % (W * 0.5);
+    ctx.fillText(ghost + ghost, shift - W * 0.25, y);
+  }
+
+  /* 顶部黑色琴键条(下缘圆角) */
+  ctx.fillStyle = INK;
+  const barN = 7;
+  const barW = W * 0.052, gap = W * 0.024;
+  const barX0 = W * 0.36;
+  for (let i = 0; i < barN; i++) {
+    const bh = H * (0.16 + 0.015 * Math.sin(i * 1.7));
+    roundedBar(ctx, barX0 + i * (barW + gap), -H * 0.02, barW, bh, barW * 0.45);
+  }
+  /* 左侧红色半圆(亮一档) */
+  ctx.fillStyle = '#FF1F30';
+  ctx.beginPath();
+  ctx.arc(barX0 - gap * 1.5, H * 0.09, H * 0.10, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.fill();
+  /* 句点圆 */
+  ctx.fillStyle = '#E01524';
+  ctx.beginPath();
+  ctx.arc(barX0 + barN * (barW + gap) + W * 0.02, H * 0.135, H * 0.022, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* 顶部小字 */
+  ctx.fillStyle = INK;
+  ctx.font = `700 ${H * 0.022}px Helvetica, Arial, sans-serif`;
+  ctx.fillText("hui's Space", W * 0.04, H * 0.06);
+  ctx.textAlign = 'right';
+  ctx.fillText('@hui', W * 0.96, H * 0.06);
+  ctx.textAlign = 'left';
+
+  /* 分隔细线 */
+  ctx.fillRect(W * 0.04, H * 0.235, W * 0.92, Math.max(2, H * 0.0025));
+
+  /* 左侧黑色大词栈 */
+  const words = ['Learner', 'Developer', 'Designer', 'Creator'];
+  const wSize = H * 0.115;
+  ctx.font = `800 ${wSize}px Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = INK;
+  words.forEach((w, i) => {
+    ctx.fillText(w, W * 0.04, H * 0.40 + i * wSize * 1.22);
+  });
+
+  /* 右下白色主标题 */
+  ctx.fillStyle = PAPER;
+  ctx.font = `700 ${H * 0.075}px Helvetica, Arial, sans-serif`;
+  ctx.fillText("hui's", W * 0.50, H * 0.72);
+  ctx.font = `800 ${H * 0.24}px Helvetica, Arial, sans-serif`;
+  ctx.fillText('SPACE', W * 0.49, H * 0.95);
+
+  /* 一点青 */
+  ctx.fillStyle = TEAL;
+  ctx.beginPath();
+  ctx.arc(W * 0.47, H * 0.30, H * 0.011, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* ---------- WebGL:全屏四边形 + 液态扭曲着色器 ---------- */
+const VERT = `
+attribute vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+
+const FRAG = `
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2  uRes;
+uniform float uTime;
+uniform vec4  uTrail[16];   /* xy: uv 位置, zw: 速度*强度 */
+uniform vec3  uRipple[6];   /* xy: uv 位置, z: 触发时刻 */
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1,0)), u.x),
+             mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + 11.7; a *= 0.5; }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  float aspect = uRes.x / uRes.y;
+  vec2 p = vec2(uv.x * aspect, uv.y);
+
+  /* 呼吸般的常驻流动(很轻) */
+  float n1 = fbm(p * 2.2 + uTime * 0.05);
+  float n2 = fbm(p * 2.2 - uTime * 0.04 + 7.31);
+  vec2 off = (vec2(n1, n2) - 0.5) * 0.007;
+
+  /* 鼠标墨迹拖拽 */
+  for (int i = 0; i < 16; i++) {
+    vec4 t = uTrail[i];
+    vec2 c = vec2(t.x * aspect, t.y);
+    float d = length(p - c);
+    off += t.zw * exp(-d * d * 130.0);
+  }
+
+  /* 点击涟漪 */
+  for (int i = 0; i < 6; i++) {
+    vec3 r = uRipple[i];
+    float age = uTime - r.z;
+    if (age > 0.0 && age < 2.5) {
+      vec2 c = vec2(r.x * aspect, r.y);
+      vec2 dir = p - c;
+      float d = length(dir);
+      float rad = age * 0.45;
+      float band = exp(-pow((d - rad) * 16.0, 2.0));
+      off += normalize(dir + 1e-5) * band * exp(-age * 2.2) * 0.05;
+    }
+  }
+
+  vec2 offUV = vec2(off.x / aspect, off.y);
+  vec2 uv2 = uv + offUV;
+
+  /* 沿扭曲方向做轻微 RGB 分离 —— 边缘泛出青/白色 */
+  vec2 ca = offUV * 0.55;
+  float r = texture2D(uTex, uv2 + ca).r;
+  float g = texture2D(uTex, uv2).g;
+  float b = texture2D(uTex, uv2 - ca).b;
+  vec3 col = vec3(r, g, b);
+
+  /* 胶片颗粒 */
+  col += (hash(uv * uRes + fract(uTime) * 100.0) - 0.5) * 0.045;
+
+  /* 很轻的四角压暗 */
+  col *= 1.0 - 0.10 * smoothstep(0.55, 1.1, length(uv - 0.5) * 1.35);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function makeShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, makeShader(gl.VERTEX_SHADER, VERT));
+gl.attachShader(prog, makeShader(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uTex    = gl.getUniformLocation(prog, 'uTex');
+const uRes    = gl.getUniformLocation(prog, 'uRes');
+const uTime   = gl.getUniformLocation(prog, 'uTime');
+const uTrail  = gl.getUniformLocation(prog, 'uTrail');
+const uRippleU = gl.getUniformLocation(prog, 'uRipple');
+
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.uniform1i(uTex, 0);
+
+function resize() {
+  canvas.width  = Math.floor(innerWidth * DPR);
+  canvas.height = Math.floor(innerHeight * DPR);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  texCanvas.width  = canvas.width;
+  texCanvas.height = canvas.height;
+  drawPoster();
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texCanvas);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+}
+addEventListener('resize', resize);
+resize();
+
+/* ---------- 交互状态 ---------- */
+const TRAIL_N = 16;
+const trail = new Float32Array(TRAIL_N * 4);   // 全 0 = 无影响
+const ripples = new Float32Array(6 * 3).fill(-10);
+let rippleIdx = 0;
+
+let mx = 0.5, my = 0.5, smx = 0.5, smy = 0.5;
+let hasMouse = false;
+let frame = 0;
+
+addEventListener('pointermove', e => {
+  mx = e.clientX / innerWidth;
+  my = 1.0 - e.clientY / innerHeight;
+  hasMouse = true;
+});
+addEventListener('pointerdown', e => {
+  const x = e.clientX / innerWidth;
+  const y = 1.0 - e.clientY / innerHeight;
+  ripples[rippleIdx * 3]     = x;
+  ripples[rippleIdx * 3 + 1] = y;
+  ripples[rippleIdx * 3 + 2] = performance.now() / 1000;
+  rippleIdx = (rippleIdx + 1) % 6;
+});
+
+function tick() {
+  const t = performance.now() / 1000;
+  frame++;
+
+  /* 平滑鼠标 + 计算速度 */
+  const pvx = smx, pvy = smy;
+  smx += (mx - smx) * 0.25;
+  smy += (my - smy) * 0.25;
+  const vx = smx - pvx, vy = smy - pvy;
+
+  /* 衰减既有墨迹 */
+  for (let i = 0; i < TRAIL_N; i++) {
+    trail[i * 4 + 2] *= 0.90;
+    trail[i * 4 + 3] *= 0.90;
+  }
+  /* 每 2 帧写入一个新采样(头部) */
+  if (hasMouse && frame % 2 === 0) {
+    for (let i = TRAIL_N - 1; i > 0; i--) {
+      trail[i * 4]     = trail[(i - 1) * 4];
+      trail[i * 4 + 1] = trail[(i - 1) * 4 + 1];
+      trail[i * 4 + 2] = trail[(i - 1) * 4 + 2];
+      trail[i * 4 + 3] = trail[(i - 1) * 4 + 3];
+    }
+    const gain = 5.0;
+    const cap = 0.06;
+    trail[0] = smx;
+    trail[1] = smy;
+    trail[2] = Math.max(-cap, Math.min(cap, vx * gain));
+    trail[3] = Math.max(-cap, Math.min(cap, vy * gain));
+  }
+
+  gl.uniform1f(uTime, t);
+  gl.uniform4fv(uTrail, trail);
+  gl.uniform3fv(uRippleU, ripples);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

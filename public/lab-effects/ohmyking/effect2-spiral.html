@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effect 2 — Golden Spiral (page5)</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="src/styles/styles.css">
+    <style>
+        /* 抽取页胶水：还原原站 page5 时刻的 body 状态（bodyCSS.white），并恢复可见光标 */
+        body { background-color: rgb(239, 238, 236); cursor: auto; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <!-- ↓↓↓ 以下 section 原样复制自原站 index.html (page5) ↓↓↓ -->
+            <section id="page5" class="page-section active-section">
+                <div>
+                    <div class="whoami-title-right">A Designer</div>
+                    <div style="z-index: 1000; position: absolute; top: 56vh; left: min(100vh,67vw); width: min(32vw,45vh); height: 0; border: 1px solid rgb(0, 0, 0);"></div>
+                    <a href="https://ohmyking.github.io/blog/" target="_blank">
+                        <div id="page5-middle-text-button">
+                            <div style="position: relative; float: left; color: rgb(0, 0, 0); font-size: 1.8vh; text-align: left;">to my Blog</div>
+                            <div style="position: relative; float: right; color: rgb(0, 0, 0); font-size: 2.5vh; text-align: left;">→</div>
+                        </div>
+                    </a>
+                </div>
+                <div style="position: absolute; left: min(119vh,81vw); top: 33vh; font-size: 5vh; color: rgb(0, 0, 0); text-align: left; z-index: 100; line-height: 1;">
+                    <div>Beauty</div>
+                    <div>is Purpose</div>
+                </div>
+                <div style="position: absolute; left: min(50vh,38vw); top: 46vh; font-size: 2.5vh; z-index: 100; text-align: right; font-weight: 200; line-height: 1;">
+                    <div>Know a little about</div>
+                    <div>Interaction design,</div>
+                    <div>Graphic design,</div>
+                    <div>3D design,</div>
+                </div>
+                <div style="text-align: center;">
+                    <canvas style="position: absolute; bottom: 0; transform: translateX(-45%);" id="spiral-canvas"></canvas>
+                </div>
+            </section>
+    <!-- ↑↑↑ 原样复制结束 ↑↑↑ -->
+
+    <!-- 原站脚本，零改动 -->
+    <script src="src/pages/page5.js" type="module"></script>
+    <script type="module">
+        // 胶水：原站在滚动到 page5 时调用 window.initialize_page5()
+        window.addEventListener('load', () => window.initialize_page5());
+    </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encre — flow-noise ink field</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #efedea; }
+  body { color: #141414; font-family: ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .ui { position: fixed; z-index: 1; pointer-events: none; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .kicker { left: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; animation: fadeUp 1.2s ease both; }
+  .index { right: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; }
+  .plate { left: 4%; bottom: 9%; animation: fadeUp 1.2s 0.15s ease both; }
+  .plate h1 { margin: 0; font-size: clamp(40px, 4.6vw, 74px); font-weight: 400; line-height: 1; }
+  .plate .rule { margin-top: 12px; width: 26vw; min-width: 180px; height: 1px; background: #141414; }
+  .plate .sub { margin-top: 10px; width: 26vw; min-width: 180px; font-size: 11px; letter-spacing: 0.14em; }
+  .hint { right: 4%; bottom: 5%; font-size: 10px; letter-spacing: 0.2em; color: rgba(20,20,20,0.45); }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="ui kicker">ÉTUDES WEBGL — TROIS ESSAIS</div>
+<div class="ui index">01 / 03</div>
+<div class="ui plate">
+  <h1>Encre</h1>
+  <div class="rule"></div>
+  <div class="sub">flow-noise, domain warp</div>
+</div>
+<div class="ui hint">MOVE TO STIR — 移动搅动</div>
+
+<script>
+(() => {
+  const INK = '#7a3527';   // 墨色，可换 #141414 / #31473a / #1f3a6e
+  const SPEED = 1;
+
+  const canvas = document.getElementById('fx');
+  const gl = canvas.getContext('webgl', { antialias: false });
+  if (!gl) return;
+
+  const mkProg = (vsSrc, fsSrc) => {
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  };
+
+  const NOISE = `
+    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
+    float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);
+      return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}
+    float fbm(vec2 p){float v=0.0;float a=0.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.03+vec2(1.7,4.1);a*=0.5;}return v;}`;
+
+  const prog = mkProg(
+    'attribute vec2 aPos;void main(){gl_Position=vec4(aPos,0.0,1.0);}',
+    `precision highp float;
+    uniform vec2 uRes;uniform float uT;uniform vec2 uMouse;uniform float uStir;uniform vec3 uInk;
+    ${NOISE}
+    void main(){
+      vec2 uv=gl_FragCoord.xy/uRes.xy;
+      float asp=uRes.x/uRes.y;
+      vec2 p=vec2(uv.x*asp,uv.y)*2.4;
+      vec2 mp=vec2(uMouse.x*asp,uMouse.y)*2.4;
+      vec2 dm=p-mp;float md=length(dm);
+      p+=vec2(-dm.y,dm.x)/max(md,0.05)*exp(-md*1.6)*uStir;
+      float t=uT*0.05;
+      vec2 q=vec2(fbm(p+vec2(0.0,t)),fbm(p+vec2(5.2,1.3)-t*0.7));
+      vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+t*0.4),fbm(p+3.2*q+vec2(8.3,2.8)-t*0.3));
+      float f=fbm(p+3.0*r);
+      vec3 paper=vec3(0.949,0.940,0.925);
+      vec3 blush=mix(paper,uInk,0.22);
+      vec3 deep=uInk*vec3(0.55,0.44,0.42);
+      vec3 col=mix(paper,blush,smoothstep(0.30,0.64,f));
+      col=mix(col,uInk,smoothstep(0.54,0.84,f));
+      col=mix(col,deep,smoothstep(0.60,0.94,fbm(p*1.4+r*2.2))*smoothstep(0.55,0.85,f)*0.85);
+      col=mix(col,vec3(0.145,0.105,0.09),smoothstep(0.80,1.0,q.y*f)*0.55);
+      col+=(hash(gl_FragCoord.xy+fract(uT))-0.5)*0.03;
+      gl_FragColor=vec4(col,1.0);
+    }`);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  const u = {
+    res: gl.getUniformLocation(prog, 'uRes'),
+    t: gl.getUniformLocation(prog, 'uT'),
+    mouse: gl.getUniformLocation(prog, 'uMouse'),
+    stir: gl.getUniformLocation(prog, 'uStir'),
+    ink: gl.getUniformLocation(prog, 'uInk'),
+  };
+
+  const hexRgb = (h) => {
+    h = h.replace('#', '');
+    return [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+  };
+  const ink = hexRgb(INK);
+
+  const resize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // 某些嵌入环境首帧布局尺寸为 0，取不到时退回 window 尺寸
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    canvas.width = Math.max(2, w * dpr);
+    canvas.height = Math.max(2, h * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  };
+  window.addEventListener('resize', resize);
+  resize();
+
+  const m = { tx: -5, ty: -5, x: -5, y: -5, vel: 0, energy: 0 };
+  window.addEventListener('pointermove', (e) => {
+    const nx = e.clientX / window.innerWidth;
+    const ny = 1 - e.clientY / window.innerHeight;
+    m.vel = Math.min(1.5, m.vel + Math.hypot(nx - m.tx, ny - m.ty) * 4);
+    m.tx = nx; m.ty = ny;
+  });
+
+  const t0 = performance.now();
+  const frame = () => {
+    const t = (performance.now() - t0) / 1000 * SPEED;
+    m.x += (m.tx - m.x) * 0.07;
+    m.y += (m.ty - m.y) * 0.07;
+    m.vel *= 0.94;
+    m.energy += (Math.min(1, m.vel) - m.energy) * 0.06;
+    gl.uniform2f(u.res, canvas.width, canvas.height);
+    gl.uniform1f(u.t, t);
+    gl.uniform2f(u.mouse, m.x, m.y);
+    gl.uniform1f(u.stir, 0.12 + m.energy * 0.85);
+    gl.uniform3f(u.ink, ink[0], ink[1], ink[2]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

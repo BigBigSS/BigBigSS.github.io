@@ -1,0 +1,45 @@
+---
+title: Perlin 地形与等高线
+description: 一张 128×128 的平面网格，被 Perlin 噪声顶成起伏的地形。等高线由片段着色器对高度值取 sin 后抗锯齿描边生成，非贴图。
+date: 2026-07-06
+tags:
+  - three.js
+  - glsl
+  - webgl2
+demo: /lab-effects/ohmyking/effect1-terrain.html
+download: /lab-effects/terrain-source.zip
+source: 抽取自 ohmyking.vercel.app 的 page4 场景，代码未做改动
+---
+
+## 整体结构
+
+场景由四层组成：位移几何、着色、交互、入场过渡。渲染管线为 WebGL2 + GLSL3（`RawShaderMaterial`），核心文件是 `page4.js`，依赖 `renderer.js` 单例与 `perlin.js`。
+
+## 几何：噪声位移
+
+- 基础网格是 `PlaneBufferGeometry`，细分 128×128。
+- CPU 侧用 `perlin2()` 生成高度场，写入 128×128 的 `DataTexture`（FloatType）。
+- 顶点着色器采样该位移纹理，把顶点沿 Y 轴抬升：`position + vec3(0, 0.5 * (d - 0.5), 0)`。
+- 每帧偏移噪声采样坐标并重写纹理，地形因此持续流动。
+
+## 着色：等高线与配色
+
+片段着色器基于插值后的高度值 `d` 做两件事：
+
+1. **等高线**：`sin(d * 16 * 2π)` 产生周期性亮带，高度每跨一个周期出现一条线。用 `fwidth` 计算屏幕空间导数、`smoothstep` 做单像素抗锯齿（代码中的 `aastep` 函数），保证任意视距下线宽稳定。
+2. **配色**：以 `d` 为 U 坐标采样一条 1D 渐变纹理（`texture(gradient, vec2(d, 0))`），完成高度到颜色的映射。改配色只需换渐变纹理。
+
+网格线用同样的 `aastep` 方案对 UV 取 cos 生成，与等高线叠加。
+
+## 交互
+
+- `OrbitControls`：`enableDamping + dampingFactor 0.05`，`minPolarAngle/maxPolarAngle` 锁定俯仰范围，只允许水平环绕，禁用缩放。
+- 鼠标光点：鼠标位置映射为 `ball` uniform（vec2），片段着色器按 `length(vPosition.xz - ball)` 计算距离衰减，点亮光点附近的地形。
+
+## 入场过渡
+
+单个 uniform `transitionFactor` 控制：`smoothstep(t - 0.2, t, vUv.x)` 随 t 从左到右扫过 UV，把 alpha 逐列拉起，实现"扫描式"入场。销毁时反向执行。
+
+## DOM 与 WebGL 分工
+
+环绕的公式文字（梯度下降、拉格朗日函数等）是 DOM 元素：JS 把三维圆环上的点投影回屏幕坐标，用绝对定位摆放并周期性轮换文本。文字渲染、字体、选中等能力保留在 DOM 层，WebGL 只负责场景本身。

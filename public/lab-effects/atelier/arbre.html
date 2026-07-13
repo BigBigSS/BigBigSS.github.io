@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arbre — a procedural cherry tree</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #efedea; }
+  body { color: #141414; font-family: Helvetica, Arial, sans-serif; cursor: pointer; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .ui { position: fixed; z-index: 1; pointer-events: none; }
+  .plate { left: 4%; top: 10%; }
+  .plate h1 { margin: 0; font-size: clamp(40px, 4.6vw, 74px); font-weight: 400; line-height: 1.1; }
+  .plate .rule { margin-top: 10px; width: 26vw; min-width: 180px; height: 1px; background: #141414; }
+  .plate .sub { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; width: 26vw; min-width: 180px; font-size: 11px; letter-spacing: 0.14em; }
+  .plate .sub .arrow { font-size: 16px; }
+  .statement { left: 4%; bottom: 9%; font-size: clamp(20px, 2vw, 32px); font-weight: 400; }
+  .hint { left: 4%; bottom: 5%; font-size: 10px; letter-spacing: 0.2em; color: rgba(20,20,20,0.4); }
+  .code { right: 4%; top: 12%; width: 220px; font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 10.5px; line-height: 1.65; white-space: pre; }
+  .code div { min-height: 17px; }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="ui plate">
+  <h1>A Developer</h1>
+  <div class="rule"></div>
+  <div class="sub"><span>to my Blog</span><span class="arrow">→</span></div>
+</div>
+<div class="ui statement">Creation is Vitality.</div>
+<div class="ui hint">CLICK TO REGROW — 点击重新生长</div>
+<div class="ui code" id="code"></div>
+
+<script>
+(() => {
+  const COLOR = '#7a3527';   // 枝干颜色，可换 #8f2b1f / #141414 / #5b4632
+  const SPEED = 1;
+
+  const canvas = document.getElementById('fx');
+  const codeEl = document.getElementById('code');
+  const ctx0 = canvas.getContext('2d');
+  let dpr = 1, W = 0, H = 0;
+  let branches = [], blossoms = [], totalT = 10;
+  let seedBase = 11;
+  let t0 = performance.now();
+
+  // 固定 20 行代码面板，每帧只改 textContent
+  const lineEls = [];
+  for (let i = 0; i < 20; i++) {
+    const div = document.createElement('div');
+    const txt = document.createElement('span');
+    const caret = document.createElement('span');
+    caret.textContent = '▌';
+    div.appendChild(txt); div.appendChild(caret);
+    codeEl.appendChild(div);
+    lineEls.push({ txt, caret });
+  }
+
+  const makeRnd = (seed) => {
+    let s = seed;
+    return () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  };
+
+  // 递归程序化树：每根枝条是一条略带弯曲的折线，
+  // 子枝在父枝画到约 85% 时开始生长
+  const grow = () => {
+    const rnd = makeRnd(seedBase);
+    branches = [];
+    blossoms = [];
+    const unit = Math.min(H, W * 0.9);
+    const trunkLen = unit * 0.24;
+
+    const addBranch = (x, y, angle, len, width, depth, tStart) => {
+      const bow = (rnd() - 0.5) * len * 0.45;
+      const ex = x + Math.cos(angle) * len;
+      const ey = y + Math.sin(angle) * len;
+      const mx = (x + ex) / 2 - Math.sin(angle) * bow;
+      const my = (y + ey) / 2 + Math.cos(angle) * bow;
+      const pts = [];
+      const N = 12;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const a1x = x + (mx - x) * t, a1y = y + (my - y) * t;
+        const a2x = mx + (ex - mx) * t, a2y = my + (ey - my) * t;
+        pts.push([a1x + (a2x - a1x) * t, a1y + (a2y - a1y) * t]);
+      }
+      // 越深的枝条长得越快 → 收尾时树冠迅速铺满
+      const dur = (0.9 + len / unit * 2.4) * (depth > 3 ? 0.55 : 1);
+      branches.push({ pts, width, tStart, dur, depth });
+      if (depth >= 8 || len < unit * 0.018) {
+        // 枝梢开花，略晚于细枝完成
+        if (rnd() < 0.75) blossoms.push({ x: ex, y: ey, tStart: tStart + dur + rnd() * 0.8, r: 1.6 + rnd() * 2.2 });
+        return;
+      }
+      const endA = Math.atan2(ey - my, ex - mx);
+      const kids = depth < 2 ? 2 : (rnd() < 0.32 ? 3 : 2);
+      const childStart = tStart + dur * 0.85;
+      for (let k = 0; k < kids; k++) {
+        const side = kids === 2 ? (k === 0 ? -1 : 1) : k - 1;
+        const spread = 0.34 + rnd() * 0.3;
+        const ca = endA + side * spread + (rnd() - 0.5) * 0.18;
+        const clen = len * (0.66 + rnd() * 0.16);
+        addBranch(ex, ey, ca, clen, Math.max(width * 0.62, 0.5), depth + 1, childStart + rnd() * 0.25);
+      }
+    };
+
+    addBranch(W / 2, H * 0.96, -Math.PI / 2 + (rnd() - 0.5) * 0.06, trunkLen, 7, 0, 0.2);
+    totalT = branches.reduce((m, b) => Math.max(m, b.tStart + b.dur), 0);
+  };
+
+  const setup = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    grow();
+  };
+  window.addEventListener('resize', setup);
+  setup();
+
+  window.addEventListener('click', () => {
+    seedBase = (seedBase * 7 + 13) % 1000 + 2;
+    grow();
+    t0 = performance.now();
+  });
+
+  const draw = (t) => {
+    const ctx = ctx0;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+    for (const b of branches) {
+      const p = Math.min(Math.max((t - b.tStart) / b.dur, 0), 1);
+      if (p <= 0) continue;
+      const e = 1 - Math.pow(1 - p, 2); // 每根枝条 ease-out
+      const n = Math.max(Math.floor(e * (b.pts.length - 1)), 1);
+      ctx.strokeStyle = COLOR;
+      ctx.globalAlpha = b.depth > 5 ? 0.82 : 1;
+      ctx.lineWidth = b.width;
+      ctx.beginPath();
+      ctx.moveTo(b.pts[0][0], b.pts[0][1]);
+      for (let i = 1; i < n; i++) ctx.lineTo(b.pts[i][0], b.pts[i][1]);
+      // 最后一段按比例画一部分
+      const frac = e * (b.pts.length - 1) - (n - 1);
+      const [ax, ay] = b.pts[n - 1], [bx, by] = b.pts[Math.min(n, b.pts.length - 1)];
+      ctx.lineTo(ax + (bx - ax) * frac, ay + (by - ay) * frac);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (const bl of blossoms) {
+      const p = Math.min(Math.max((t - bl.tStart) / 0.5, 0), 1);
+      if (p <= 0) continue;
+      const e = 1 - Math.pow(1 - p, 3);
+      ctx.fillStyle = 'rgba(224,138,158,' + (0.9 * e).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(bl.x, bl.y, bl.r * e, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  // 右侧代码面板：内容随生长进度实时变化，打字机逐字显现
+  const updateCode = (t) => {
+    const prog = Math.min(t / (totalT || 10), 1);
+    const phase = prog < 0.45 ? 'sprouting' : (prog < 0.85 ? 'blooming' : 'flourishing');
+    const grown = branches.filter((b) => t > b.tStart).length;
+    const petals = blossoms.filter((b) => t > b.tStart).length;
+    const src = [
+      ['function', ' growBranch(len, angle, depth) {'],
+      ['', '  if (len > 3) {'],
+      ['', '    drawLine(len, angle);'],
+      ['', '    growBranch('],
+      ['', '      len * 0.7,'],
+      ['', '      angle - 20°,'],
+      ['', '      depth + 1'],
+      ['', '    );'],
+      ['', '  }'],
+      ['', '}'],
+      ['', ''],
+      ['const', ' sakuraTree = {'],
+      ['', "  type: 'cherry_blossom',"],
+      ['', '  growth: ' + Math.round(prog * 100) + '%,'],
+      ['', "  phase: '" + phase + "',"],
+      ['', '  structure: {'],
+      ['', '    branches: ' + grown + ','],
+      ['', '    petals: ' + petals],
+      ['', '  }'],
+      ['', '}'],
+    ];
+    let budget = Math.floor(t * 34);
+    for (let i = 0; i < src.length; i++) {
+      const full = src[i][0] + src[i][1];
+      const shown = Math.max(Math.min(budget, full.length), 0);
+      budget -= full.length;
+      const el = lineEls[i];
+      const text = full.slice(0, shown);
+      if (el.txt.textContent !== text) el.txt.textContent = text;
+      el.txt.style.color = src[i][0] ? '#8f2b1f' : '#a63325';
+      el.caret.style.opacity = shown > 0 && shown < full.length ? 1 : 0;
+    }
+  };
+
+  const frame = () => {
+    const t = ((performance.now() - t0) / 1000) * SPEED;
+    draw(t);
+    updateCode(t);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+---
+title: 黄金螺旋
+description: 斐波那契螺旋在 Canvas 2D 上逐段生长，方格与弧线按黄金比例层层嵌套。无 WebGL、无第三方库，原生 2D API 实现。
+date: 2026-07-06
+tags:
+  - canvas2d
+  - animation
+  - math
+demo: /lab-effects/ohmyking/effect2-spiral.html
+download: /lab-effects/golden-spiral-source.zip
+source: 抽取自 ohmyking.vercel.app 的 page5 场景，代码未做改动
+---
+
+## 整体结构
+
+单文件 `page5.js`，无外部依赖。核心常数 `PHI = (√5 + 1) / 2`，由 `GoldenSpiralCanvas` 类管理画布、绘制调度与生命周期。
+
+## 构造原理
+
+螺旋不是参数方程曲线，而是按几何定义递归构造：
+
+1. 画一个正方形，在其中画四分之一圆弧。
+2. 将剩余画布区域按黄金比例切除已画部分。
+3. 在剩下的矩形里重复步骤 1-2，每层边长为上一层的 1/φ。
+
+方格嵌套与弧线衔接天然对齐——它们来自同一套几何构造，不需要额外的对齐计算。
+
+## 绘制调度
+
+- 每段弧线用 `requestAnimationFrame` 逐帧推进角度，画完一段再进入下一段，形成"逐段生长"的视觉。
+- 段与段之间用 Promise 串联，绘制顺序由 `async/await` 表达，而不是嵌套回调。
+
+## 中断与重绘
+
+窗口 resize 时需要清空重画，中断用 `AbortController` 实现：
+
+- 每个绘制任务持有 `signal`，绘制循环每帧检查 `signal.aborted`，命中即退出。
+- resize 触发时先 `abort()` 旧任务再启动新任务，避免两条螺旋并发绘制的竞态。
+- resize 事件本身做了防抖（debounce 100ms），避免拖拽窗口期间反复重建。
+
+这一套等价于给 Canvas 动画补上了"可取消"语义，比布尔标志位方案的边界更清晰：取消状态由任务自身携带，不依赖外部变量的读写时序。

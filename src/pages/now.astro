@@ -54,26 +54,48 @@ const timeline = await Promise.all(
               // Stagger first few elements
               const delayAttr = idx < 4 ? `transition-delay: ${idx * 0.1}s` : "";
               const formattedDate = formatDate(entry.data.date);
+              const isArticle = entry.data.kind === "article";
 
-              return (
-                <button 
-                  type="button" 
-                  class="editorial-card reveal-on-scroll" 
-                  style={delayAttr} 
+              const cardInner = (
+                <>
+                  <div class="editorial-card__meta">
+                    <span class="editorial-card__date">{formattedDate}</span>
+                    <span class="editorial-card__line"></span>
+                    <span class="editorial-card__idx">
+                      {isArticle ? "ARTICLE" : "LOG"} // {String(idx + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  <div class="editorial-card__content">
+                    {entry.data.title && <h3 class="editorial-card__title">{entry.data.title}</h3>}
+                    <p class={entry.data.title ? "editorial-card__summary" : "editorial-card__summary editorial-card__summary--solo"}>
+                      {entry.data.summary}
+                    </p>
+                  </div>
+                </>
+              );
+
+              // 大文章：跳转独立页面（旧实验室文章布局）；小随笔：幕帘展开
+              return isArticle ? (
+                <a
+                  class="editorial-card reveal-on-scroll"
+                  style={delayAttr}
+                  href={`/now/${entry.id}`}
+                  data-now-date={formattedDate}
+                  data-editorial-card
+                >
+                  {cardInner}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  class="editorial-card reveal-on-scroll"
+                  style={delayAttr}
                   data-now-open={String(idx)}
                   data-now-date={formattedDate}
                   data-editorial-card
                 >
-                  <div class="editorial-card__meta">
-                    <span class="editorial-card__date">{formattedDate}</span>
-                    <span class="editorial-card__line"></span>
-                    <span class="editorial-card__idx">LOG // {String(idx + 1).padStart(2, "0")}</span>
-                  </div>
-                  
-                  <div class="editorial-card__content">
-                    {entry.data.title && <h3 class="editorial-card__title">{entry.data.title}</h3>}
-                    <p class="editorial-card__summary">{entry.data.summary}</p>
-                  </div>
+                  {cardInner}
                 </button>
               );
             })
@@ -87,6 +109,8 @@ const timeline = await Promise.all(
       <div class="now-editorial__detail-layer" aria-hidden="true">
         {
           timeline.map(({ entry, rendered }, index) => {
+            // 大文章走独立页面，不渲染幕帘面板；索引按字符串匹配，留空洞无影响
+            if (entry.data.kind === "article") return null;
             const { Content } = rendered;
 
             return (
@@ -164,34 +188,41 @@ const timeline = await Promise.all(
 </BaseLayout>
 
 <script>
-  // ============================
-  // Scroll Reveal Observer Object
-  // ============================
-  const observerOptions = {
-    root: null,
-    rootMargin: '0px 0px -10% 0px',
-    threshold: 0.02
+  // ClientRouter (view transitions) swaps the DOM without re-running this
+  // module, so all setup lives in init(), re-run on astro:page-load, and
+  // every listener/observer is torn down on astro:before-swap.
+  let cleanups: Array<() => void> = [];
+
+  const initRevealObserver = () => {
+    const observerOptions = {
+      root: null,
+      rootMargin: '0px 0px -10% 0px',
+      threshold: 0.02
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.reveal-on-scroll').forEach(el => {
+        observer.observe(el);
+      });
+    });
+
+    cleanups.push(() => observer.disconnect());
   };
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, observerOptions);
-
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.reveal-on-scroll').forEach(el => {
-      observer.observe(el);
-    });
-  });
 
   // ============================
   // Curtain Modal Logic Hookup
   // ============================
-  document.querySelectorAll<HTMLElement>("[data-now-experience]").forEach((root) => {
+  // 根元素限定 .container--editorial，避免与首页 NowEditorialCurtain 的同名钩子互相绑定
+  const initCurtain = (root: HTMLElement) => {
     const openButtons = Array.from(root.querySelectorAll<HTMLElement>("[data-now-open]"));
     const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-now-panel]"));
     const closeButtons = Array.from(root.querySelectorAll<HTMLElement>("[data-now-close]"));
@@ -257,21 +288,19 @@ const timeline = await Promise.all(
       button.addEventListener("click", close);
     });
 
-    document.addEventListener("keydown", (event) => {
+    const onKeydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         close();
       }
-    });
+    };
+    document.addEventListener("keydown", onKeydown);
 
-    window.addEventListener(
-      "beforeunload",
-      () => {
-        cleanupTimers();
-        document.body.style.overflow = "";
-      },
-      { once: true },
-    );
-  });
+    cleanups.push(() => {
+      document.removeEventListener("keydown", onKeydown);
+      cleanupTimers();
+      document.body.style.overflow = "";
+    });
+  };
 
   // ============================================
   // 3D 滚筒弧度滚动与中心焦点日期实时追踪控制器
@@ -402,20 +431,36 @@ const timeline = await Promise.all(
     window.addEventListener("scroll", onScroll, { passive: true });
 
     // 释放资源
-    window.addEventListener(
-      "beforeunload",
-      () => {
-        window.removeEventListener("scroll", onScroll);
-        if (scrollTimer) window.clearTimeout(scrollTimer);
-      },
-      { once: true },
-    );
+    cleanups.push(() => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollTimer) window.clearTimeout(scrollTimer);
+      document.body.classList.remove("is-scrolling");
+    });
   };
 
-  // 在 DOM 渲染的下一个帧周期，确保完全绑定
-  requestAnimationFrame(() => {
-    setupScroll3DEffect();
-  });
+  const init = () => {
+    // astro:page-load 在每个页面都会触发，只在 /now 页面（存在编辑部布局根元素时）初始化
+    const roots = document.querySelectorAll<HTMLElement>(
+      ".container--editorial[data-now-experience]",
+    );
+    if (!roots.length) return;
+
+    initRevealObserver();
+    roots.forEach(initCurtain);
+
+    // 在 DOM 渲染的下一个帧周期，确保完全绑定
+    requestAnimationFrame(() => {
+      setupScroll3DEffect();
+    });
+  };
+
+  const cleanup = () => {
+    cleanups.forEach((fn) => fn());
+    cleanups = [];
+  };
+
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", cleanup);
 </script>
 
 <style>
@@ -687,10 +732,18 @@ const timeline = await Promise.all(
     transform: translateX(6px);
   }
 
+  /* 文章卡片以 <a> 渲染时，抹平与 <button> 的默认样式差异 */
+  a.editorial-card {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    text-align: inherit;
+  }
+
   .editorial-card__title {
-    margin: 0 0 16px;
-    font-size: clamp(1.8rem, 3vw, 2.3rem);
-    line-height: 1.15;
+    margin: 0 0 14px;
+    font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+    line-height: 1.2;
     letter-spacing: -0.02em;
     color: var(--text-primary);
   }
@@ -698,10 +751,18 @@ const timeline = await Promise.all(
   .editorial-card__summary {
     margin: 0;
     color: var(--text-secondary);
-    font-size: 1.15rem;
-    line-height: 1.6;
+    font-size: 0.98rem;
+    line-height: 1.65;
     font-weight: 400;
     transition: color 0.4s var(--ease-cinema);
+  }
+
+  /* 无大标题的随笔：摘要自动升格，承担标题的视觉重量 */
+  .editorial-card__summary--solo {
+    font-size: clamp(1.2rem, 1.9vw, 1.5rem);
+    line-height: 1.45;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
   }
 
   .editorial-card:hover .editorial-card__summary,
@@ -735,9 +796,20 @@ const timeline = await Promise.all(
   /* ============================
    * Curtain Modal Styles Ported
    * ============================ */
+   /* 幕帘转场：与主题反差的全屏擦除层——深色模式白幕帘，浅色模式黑幕帘 */
    .now-editorial__curtain {
-    /* 彻底注释并隐藏原有的全屏大面积黑色遮罩滑入动画，还原极其清透的高级感 */
-    display: none !important;
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    background: #f0f0f0;
+    transform: translateY(100%);
+    pointer-events: none;
+    /* idle 基态不带过渡：关闭动画结束后从顶部无感归位回底部停泊位 */
+    transition: none;
+  }
+
+  :global(body.light-mode) .now-editorial__curtain {
+    background: #141414;
   }
 
   .now-editorial__detail-layer {
@@ -757,13 +829,36 @@ const timeline = await Promise.all(
       transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  [data-state="entering"] .now-editorial__curtain,
-  [data-state="open"] .now-editorial__curtain {
-    display: none !important;
+  /* 进入：幕帘自下而上盖住画面（JS 在 520ms 后切到 open） */
+  [data-state="entering"] .now-editorial__curtain {
+    transform: translateY(0);
+    transition: transform 520ms cubic-bezier(0.65, 0, 0.35, 1);
   }
 
+  /* 打开：幕帘像刷子一样退回——顶边从上往下收回底部，揭示下方淡入的详情层 */
+  [data-state="open"] .now-editorial__curtain {
+    transform: translateY(100%);
+    transition: transform 640ms cubic-bezier(0.22, 1, 0.36, 1) 60ms;
+  }
+
+  /* 返回：镜像笔触——幕帘从顶部降下盖住，再向上收回露出列表（keyframes 保证起点在顶部） */
   [data-state="exiting"] .now-editorial__curtain {
-    display: none !important;
+    animation: now-curtain-close 700ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+
+  @keyframes now-curtain-close {
+    0% {
+      transform: translateY(-100%);
+    }
+    45% {
+      transform: translateY(0);
+    }
+    60% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-100%);
+    }
   }
 
   [data-state="open"] .now-editorial__detail-layer {
@@ -792,6 +887,9 @@ const timeline = await Promise.all(
   }
 
   .now-editorial__detail-index {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
     color: var(--text-tertiary);
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 0.78rem;
@@ -991,7 +1089,11 @@ const timeline = await Promise.all(
     }
 
     .editorial-card__title {
-      font-size: 1.6rem;
+      font-size: 1.3rem;
+    }
+
+    .editorial-card__summary--solo {
+      font-size: 1.15rem;
     }
   }
 

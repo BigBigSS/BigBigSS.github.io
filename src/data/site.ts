@@ -18,7 +18,7 @@ export const aboutParagraphs = [
 export const navLinks = [
   { href: "/#about", label: "关于" },
   { href: "/now", label: "最近" },
-  { href: "/posts", label: "实验室" },
+  { href: "/lab", label: "实验室" },
 ];
 
 export const spectrum = [

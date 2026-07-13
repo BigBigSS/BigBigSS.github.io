@@ -58,14 +58,15 @@ const isActive = (href: string) => {
 </header>
 
 <script>
+  const navWindow = window as typeof window & {
+    __navScrollCleanup?: () => void;
+  };
+
+  const initNav = () => {
   const nav = document.querySelector<HTMLElement>("[data-nav]");
   const indicator = document.querySelector<HTMLElement>("[data-nav-indicator]");
   const links = document.querySelectorAll<HTMLElement>("[data-nav-link]");
   const magnetics = document.querySelectorAll<HTMLElement>("[data-magnetic]");
-
-  const navWindow = window as typeof window & {
-    __navScrollCleanup?: () => void;
-  };
 
   if (nav && indicator) {
     navWindow.__navScrollCleanup?.();
@@ -204,6 +205,11 @@ const isActive = (href: string) => {
       window.removeEventListener("scroll", requestSyncScroll);
     };
   }
+  };
+
+  // ClientRouter (view transitions) swaps the DOM without re-running this
+  // module, so re-init on every page load (fires on first load too).
+  document.addEventListener("astro:page-load", initNav);
 </script>
 
 <style>
@@ -217,6 +223,14 @@ const isActive = (href: string) => {
     justify-content: center;
     pointer-events: none;
     transition: top 400ms var(--ease-cinema);
+  }
+
+  /* now 幕帘阅读层打开时（z-index 230），导航抬升到它之上、幕帘擦除层（240）之下：
+     转场时幕帘照常扫过全屏盖住导航，展开后导航保持可见可点 */
+  :global(body:has([data-now-experience][data-state="entering"])) .nav-wrap,
+  :global(body:has([data-now-experience][data-state="open"])) .nav-wrap,
+  :global(body:has([data-now-experience][data-state="exiting"])) .nav-wrap {
+    z-index: 235;
   }
 
   .nav-inner {

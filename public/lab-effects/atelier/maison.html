@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maison — fluid-revealed wordmark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Italiana&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #050505; }
+  body { cursor: crosshair; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hint {
+    position: fixed; right: 20px; bottom: 16px; z-index: 1;
+    font: 10px/1.6 "SF Mono", ui-monospace, Menlo, monospace;
+    color: rgba(245,240,232,0.35); letter-spacing: 0.2em;
+    pointer-events: none; user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="hint">MOVE TO REVEAL — 移动显影 · CLICK — 波纹</div>
+
+<script>
+(() => {
+  const WORD = 'MAISON';
+  const ACCENT = '#d8c39a';    // 金属渐变中心色，可换 #c9ccd6 / #d6b3c0 / #b9cfc2
+  const BRUSH = 110;           // 笔刷半径 px
+  const PERSISTENCE = 0.05;    // 痕迹消退速度（越大消得越快）
+
+  const canvas = document.getElementById('fx');
+  const t0 = performance.now();
+  const mouse = { x: -9999, y: -9999, lastMove: 0 };
+  let bursts = [];
+  let ctx, tctx, trail, dpr = 1, w = 0, h = 0, blobs = [];
+
+  const setup = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = canvas.clientWidth || window.innerWidth;
+    h = canvas.clientHeight || window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx = canvas.getContext('2d');
+    // 痕迹缓冲
+    trail = document.createElement('canvas');
+    trail.width = canvas.width;
+    trail.height = canvas.height;
+    tctx = trail.getContext('2d');
+    // 流体链：一串滞后跟随者
+    const ks = [0.22, 0.13, 0.08, 0.05, 0.032];
+    blobs = ks.map((k) => ({ x: w / 2, y: h / 2, k }));
+  };
+  window.addEventListener('resize', setup);
+  setup();
+
+  canvas.addEventListener('pointermove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+    mouse.lastMove = performance.now();
+  });
+  canvas.addEventListener('click', (e) => {
+    const r = canvas.getBoundingClientRect();
+    bursts.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() });
+  });
+
+  // 无操作时：围绕中心做慢速利萨如游走，让画面保持活着
+  const target = (now) => {
+    if (now - mouse.lastMove > 2200 || mouse.x < -999) {
+      const t = now / 1000;
+      return {
+        x: w / 2 + Math.sin(t * 0.32) * w * 0.3,
+        y: h / 2 + Math.sin(t * 0.47 + 1.3) * h * 0.18,
+      };
+    }
+    return mouse;
+  };
+
+  const draw = () => {
+    if (!ctx) return;
+    const now = performance.now();
+    const time = (now - t0) / 1000;
+
+    // --- 更新流体链 ---
+    const tgt = target(now);
+    let prev = tgt;
+    for (const b of blobs) {
+      b.x += (prev.x - b.x) * b.k;
+      b.y += (prev.y - b.y) * b.k;
+      prev = b;
+    }
+
+    // --- 痕迹缓冲：先消退，再盖上柔软的墨团 ---
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,' + PERSISTENCE + ')';
+    tctx.fillRect(0, 0, trail.width, trail.height);
+    tctx.globalCompositeOperation = 'lighter';
+    tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const baseR = BRUSH;
+    // 气态墨：每个跟随者甩出几缕游移、拉长的雾丝，
+    // 位置、拉伸和朝向都由多层正弦驱动。
+    // 不在跟随者中心盖章，所以不会形成圆形硬核。
+    blobs.forEach((b, i) => {
+      const r = baseR * (1 - i * 0.1);
+      const ph = i * 2.399;
+      for (let k = 0; k < 3; k++) {
+        const pk = ph + k * 2.1;
+        const offA = time * (0.5 + k * 0.23) + pk * 1.9 + Math.sin(time * 0.7 + pk) * 1.4;
+        const offR = r * (0.35 + 0.45 * (0.5 + 0.5 * Math.sin(time * 1.1 + pk * 2.7)));
+        const cx = b.x + Math.cos(offA) * offR;
+        const cy2 = b.y + Math.sin(offA) * offR * 0.8;
+        const stretch = 1.6 + 1.3 * Math.sin(time * 0.9 + pk * 1.3);
+        const rot = time * (0.25 + k * 0.11) + pk + Math.sin(time * 0.6 + pk) * 0.8;
+        const rw = r * 0.55;
+        const alpha = 0.16 + 0.1 * Math.sin(time * 1.4 + pk * 0.9);
+        tctx.save();
+        tctx.filter = 'blur(' + Math.max(rw * 0.5, 14).toFixed(0) + 'px)';
+        tctx.translate(cx, cy2);
+        tctx.rotate(rot);
+        tctx.scale(Math.abs(stretch) + 0.6, 1 / (Math.abs(stretch) * 0.4 + 0.8));
+        const g = tctx.createRadialGradient(0, 0, 0, 0, 0, rw);
+        g.addColorStop(0, 'rgba(255,255,255,' + Math.max(alpha, 0.05).toFixed(3) + ')');
+        g.addColorStop(0.7, 'rgba(255,255,255,' + Math.max(alpha * 0.35, 0.02).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        tctx.fillStyle = g;
+        tctx.beginPath();
+        tctx.arc(0, 0, rw, 0, Math.PI * 2);
+        tctx.fill();
+        tctx.restore();
+      }
+    });
+    // 点击波纹：扩散的柔环
+    bursts = bursts.filter((bu) => now - bu.t < 1600);
+    for (const bu of bursts) {
+      const p = (now - bu.t) / 1600;
+      const r = 60 + p * Math.max(w, h) * 0.9;
+      const a = 0.5 * (1 - p);
+      const g = tctx.createRadialGradient(bu.x, bu.y, r * 0.55, bu.x, bu.y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(0.5, 'rgba(255,255,255,' + a.toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      tctx.fillStyle = g;
+      tctx.beginPath();
+      tctx.arc(bu.x, bu.y, r, 0, Math.PI * 2);
+      tctx.fill();
+    }
+
+    // --- 主画布 ---
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // 自适应字号
+    ctx.font = '100px Italiana, serif';
+    const m = ctx.measureText(WORD);
+    const size = Math.min((w * 0.86) / Math.max(m.width / 100, 0.01), h * 0.44);
+    const cy = h * 0.5;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = size + 'px Italiana, serif';
+
+    // 缓慢呼吸的金属渐变填充
+    const gx = Math.sin(time * 0.21) * w * 0.25;
+    const grad = ctx.createLinearGradient(w / 2 - w * 0.4 + gx, cy - size / 2, w / 2 + w * 0.4 + gx, cy + size / 2);
+    grad.addColorStop(0, '#8f8577');
+    grad.addColorStop(0.35, '#f7f1e4');
+    grad.addColorStop(0.5, ACCENT);
+    grad.addColorStop(0.65, '#f7f1e4');
+    grad.addColorStop(1, '#7d7466');
+    ctx.fillStyle = grad;
+    ctx.fillText(WORD, w / 2, cy);
+
+    // 用流体痕迹作蒙版
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(trail, 0, 0);
+
+    // 常驻的幽灵描边
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = size + 'px Italiana, serif';
+    ctx.strokeStyle = 'rgba(245,240,232,0.13)';
+    ctx.lineWidth = 1;
+    ctx.strokeText(WORD, w / 2, cy);
+
+    requestAnimationFrame(draw);
+  };
+
+  // 字体就绪后再开始（首帧就用真字形；失败也照常跑，退回衬线）
+  document.fonts.load('300px Italiana').finally(() => requestAnimationFrame(draw));
+})();
+</script>
+</body>
+</html>

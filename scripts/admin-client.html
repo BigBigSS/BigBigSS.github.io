@@ -1093,8 +1093,9 @@
           <span>本地内容管理，不发布到静态站</span>
         </div>
         <nav class="module-nav" aria-label="后台模块">
-          <button class="active" data-module-button="posts">实验室 <span data-count-posts>0</span></button>
+          <button class="active" data-module-button="posts">文章 <span data-count-posts>0</span></button>
           <button data-module-button="now">最近 <span data-count-now>0</span></button>
+          <button data-module-button="labs">实验室 <span data-count-labs>0</span></button>
           <button data-module-button="gallery">图片桶 <span data-count-gallery>0</span></button>
           <button data-module-button="capabilities">技术栈 <span>2</span></button>
         </nav>
@@ -1104,7 +1105,7 @@
       <section class="main">
         <header class="topbar">
           <div>
-            <h1 data-module-title>实验室</h1>
+            <h1 data-module-title>文章</h1>
             <div class="hint" data-module-hint>管理博客文章。新增和编辑会进入独立路由页面。</div>
           </div>
           <div class="topbar-actions" data-topbar-actions></div>
@@ -1127,6 +1128,16 @@
               <button class="primary" data-new-now>新增最近</button>
             </div>
             <div class="entry-list" data-list-now></div>
+          </div>
+        </section>
+
+        <section class="module" data-module="labs">
+          <div class="list-pane">
+            <div class="list-tools">
+              <input data-search-labs placeholder="搜索实验室标题、描述、标签" />
+              <button class="primary" data-new-lab>新增实验室</button>
+            </div>
+            <div class="entry-list" data-list-labs></div>
           </div>
         </section>
 
@@ -1319,12 +1330,113 @@
                   <div class="field field--wide"><label>标题，可选</label><input name="title" /></div>
                   <div class="field field--wide"><label>摘要</label><input name="summary" required /></div>
                   <div class="field"><label>日期</label><input name="date" type="date" /></div>
+                  <div class="field">
+                    <label>类型</label>
+                    <select name="kind">
+                      <option value="note">小随笔（幕帘展开）</option>
+                      <option value="article">大文章（独立页面）</option>
+                    </select>
+                  </div>
+                  <div class="field field--wide"><label>标签，逗号分隔</label><input name="tags" placeholder="elasticsearch, search" /></div>
                 </div>
               </div>
               <div class="editor-panel" data-now-panel="image">
                 <div class="image-insert">
                   <strong>插入正文图片</strong>
                   <input data-now-upload type="file" accept="image/*" />
+                  <img data-upload-preview hidden alt="" />
+                  <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
+                  <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
+                  <div class="image-insert__row">
+                    <div class="field">
+                      <label>位置</label>
+                      <select data-image-align>
+                        <option value="center">居中</option>
+                        <option value="left">靠左</option>
+                        <option value="right">靠右</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>宽度</label>
+                      <select data-image-width>
+                        <option value="100">100%</option>
+                        <option value="66">66%</option>
+                        <option value="50">50%</option>
+                        <option value="33">33%</option>
+                        <option value="25">25%</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="button" data-insert-image>插入到光标位置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </form>
+    </section>
+
+    <section class="editor-page" data-lab-editor-page>
+      <header class="editor-header">
+        <div>
+          <h1 data-lab-editor-title>新增实验室</h1>
+        </div>
+        <div class="editor-header__title" data-lab-current-title></div>
+      </header>
+      <form class="post-editor" data-lab-page-form>
+        <section class="body-editor">
+          <div class="body-toolbar">
+            <strong>正文</strong>
+            <span class="hint" data-edit-mode-hint>预览状态，点击右上角编辑后可修改。</span>
+          </div>
+          <div class="body-split">
+            <textarea name="body" data-lab-body placeholder="实验说明，支持 Markdown / MDX"></textarea>
+          </div>
+        </section>
+        <aside class="preview-side">
+          <input name="originalId" type="hidden" />
+          <input name="id" type="hidden" />
+          <div class="live-preview-shell" data-live-preview-shell>
+            <div class="live-preview-canvas" data-live-preview-canvas>
+              <iframe class="live-preview" data-lab-preview title="实验室前端实时预览"></iframe>
+            </div>
+          </div>
+          <section class="right-panel">
+            <div class="right-panel__head">
+              <div class="right-panel__tabs" role="tablist" aria-label="实验室工具">
+                <button type="button" class="active" data-lab-panel-tab="info">编辑信息</button>
+                <button type="button" data-lab-panel-tab="image">插入图片</button>
+              </div>
+              <div class="right-panel__actions">
+                <button type="button" data-back-dashboard>返回列表</button>
+                <button type="button" data-open-current-lab>打开前台</button>
+                <button type="button" class="primary" data-start-edit>编辑</button>
+                <button type="button" class="primary" data-save-lab hidden>保存</button>
+              </div>
+            </div>
+            <div class="right-panel__body">
+              <div class="editor-panel active" data-lab-panel="info">
+                <div class="editor-form-grid">
+                  <div class="field field--wide"><label>标题</label><input name="title" required /></div>
+                  <div class="field field--wide"><label>描述</label><textarea name="description" rows="3"></textarea></div>
+                  <div class="field"><label>日期</label><input name="date" type="datetime-local" /></div>
+                  <div class="field">
+                    <label>状态</label>
+                    <select name="status">
+                      <option value="published">已发布</option>
+                      <option value="draft">草稿</option>
+                    </select>
+                  </div>
+                  <div class="field field--wide"><label>标签，逗号分隔</label><input name="tags" placeholder="webgl, glsl" /></div>
+                  <div class="field field--wide"><label>Demo 地址</label><input name="demo" placeholder="/lab-effects/etudes/encre.html" /></div>
+                  <div class="field field--wide"><label>下载地址，可选</label><input name="download" placeholder="/lab-effects/encre-source.zip" /></div>
+                  <div class="field field--wide"><label>来源说明，可选</label><input name="source" /></div>
+                </div>
+              </div>
+              <div class="editor-panel" data-lab-panel="image">
+                <div class="image-insert">
+                  <strong>插入正文图片</strong>
+                  <input data-lab-upload type="file" accept="image/*" />
                   <img data-upload-preview hidden alt="" />
                   <div class="field"><label>图片地址</label><input data-image-src placeholder="/uploads/gallery/..." /></div>
                   <div class="field"><label>Alt 文本</label><input data-image-alt placeholder="图片说明" /></div>
@@ -1369,9 +1481,10 @@
         activeModule: "posts",
         posts: [],
         now: [],
+        labs: [],
         gallery: [],
         capabilities: { rowOne: [], rowTwo: [] },
-        selected: { posts: "", now: "" },
+        selected: { posts: "", now: "", labs: "" },
         editingPostId: "",
         selectedImageIndex: null,
         selectedGalleryIndex: null,
@@ -1385,8 +1498,9 @@
       };
 
       const moduleMeta = {
-        posts: { title: "实验室", hint: "管理博客文章。新增和编辑会进入独立路由页面。" },
-        now: { title: "最近", hint: "管理最近动态，列表选择后查看详情，编辑时进入弹窗表单。" },
+        posts: { title: "文章", hint: "管理博客文章。新增和编辑会进入独立路由页面。" },
+        now: { title: "最近", hint: "管理最近动态。小随笔在幕帘展开，大文章有独立页面。" },
+        labs: { title: "实验室", hint: "管理实验室作品的介绍文章与元信息，demo 文件需放到 public/lab-effects/。" },
         gallery: { title: "图片桶", hint: "管理媒体入桶、实况照片、排序和素材健康状态。" },
         capabilities: { title: "技术栈", hint: "管理首页 SYSTEM CAPABILITIES 滚动技术栈。" },
       };
@@ -1396,9 +1510,12 @@
       const today = () => new Date().toISOString().slice(0, 10);
       const postForm = $("[data-post-form]");
       const nowPageForm = $("[data-now-page-form]");
+      const labPageForm = $("[data-lab-page-form]");
       const previewViewport = { width: 1280, height: 720 };
-      const activeEditorRoot = () => $("[data-now-editor-page].active") || $("[data-editor-page].active");
-      const activeEditorForm = () => ($("[data-now-editor-page].active") ? nowPageForm : postForm);
+      const activeEditorRoot = () =>
+        $("[data-lab-editor-page].active") || $("[data-now-editor-page].active") || $("[data-editor-page].active");
+      const activeEditorForm = () =>
+        $("[data-lab-editor-page].active") ? labPageForm : $("[data-now-editor-page].active") ? nowPageForm : postForm;
       const activeImageControl = (selector) => $(selector, activeEditorRoot() || document);
       const defaultPreviewOrigin = window.location.protocol === "file:"
         ? "http://localhost:4321"
@@ -1711,7 +1828,7 @@
         $$("[data-start-edit]", root).forEach((button) => {
           button.hidden = editing;
         });
-        $$("[data-save-post], [data-save-now-page]", root).forEach((button) => {
+        $$("[data-save-post], [data-save-now-page], [data-save-lab]", root).forEach((button) => {
           button.hidden = !editing;
         });
         $$("[data-edit-mode-hint]", root).forEach((node) => {
@@ -1745,7 +1862,7 @@
 
       const renderTopbar = () => {
         const host = $("[data-topbar-actions]");
-        host.innerHTML = state.activeModule === "posts" ? `<button class="primary" data-new-post>新增文章</button>` : state.activeModule === "now" ? `<button class="primary" data-new-now>新增最近</button>` : "";
+        host.innerHTML = state.activeModule === "posts" ? `<button class="primary" data-new-post>新增文章</button>` : state.activeModule === "now" ? `<button class="primary" data-new-now>新增最近</button>` : state.activeModule === "labs" ? `<button class="primary" data-new-lab>新增实验室</button>` : "";
       };
 
       const renderList = (type) => {
@@ -1753,8 +1870,11 @@
         const items = state[type].filter((item) => JSON.stringify(item).toLowerCase().includes(query));
         $(`[data-list-${type}]`).innerHTML = items
           .map((item) => {
-            const title = type === "posts" ? item.title : item.summary;
-            const summary = type === "posts" ? item.description || (item.tags || []).join(", ") || item.id : item.title || item.id;
+            const title = type === "now" ? item.summary : item.title;
+            const summary =
+              type === "now"
+                ? [item.kind === "article" ? "大文章" : "小随笔", item.title || item.id].join(" · ")
+                : item.description || (item.tags || []).join(", ") || item.id;
             return `<button class="entry" data-pick="${type}" data-id="${escapeHtml(item.id)}">
               <strong>${escapeHtml(title || item.id)}</strong>
               <span>${escapeHtml(item.date || "")}</span>
@@ -1867,6 +1987,8 @@
         nowPageForm.elements.id.value = item.id || today();
         nowPageForm.elements.date.value = item.date || today();
         nowPageForm.elements.title.value = item.title || "";
+        nowPageForm.elements.kind.value = item.kind === "article" ? "article" : "note";
+        nowPageForm.elements.tags.value = Array.isArray(item.tags) ? item.tags.join(", ") : "";
         nowPageForm.elements.body.value = item.body || "";
         state.selectedImageIndex = null;
         $("[data-image-src]", $("[data-now-editor-page]")).value = "";
@@ -1892,12 +2014,39 @@
         renderPreview();
       };
 
+      const labDateInputValue = (value) => {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T00:00`;
+        return raw.slice(0, 16);
+      };
+
+      const fillLabForm = (item = {}) => {
+        labPageForm.elements.originalId.value = item.id || "";
+        labPageForm.elements.id.value = item.id || "";
+        labPageForm.elements.title.value = item.title || "";
+        labPageForm.elements.description.value = item.description || "";
+        labPageForm.elements.date.value = labDateInputValue(item.date);
+        labPageForm.elements.status.value = item.draft ? "draft" : "published";
+        labPageForm.elements.tags.value = Array.isArray(item.tags) ? item.tags.join(", ") : "";
+        labPageForm.elements.demo.value = item.demo || "";
+        labPageForm.elements.download.value = item.download || "";
+        labPageForm.elements.source.value = item.source || "";
+        labPageForm.elements.body.value = item.body || "";
+        state.selectedImageIndex = null;
+        $("[data-image-src]", $("[data-lab-editor-page]")).value = "";
+        $("[data-image-alt]", $("[data-lab-editor-page]")).value = "";
+        $("[data-upload-preview]", $("[data-lab-editor-page]")).hidden = true;
+        renderLabPreview();
+      };
+
       const showPostEditorRoute = (id = "") => {
         const item = id ? state.posts.find((entry) => entry.id === id) : {};
         state.editingPostId = id;
         $("[data-dashboard]").style.display = "none";
         $("[data-editor-page]").classList.add("active");
         $("[data-now-editor-page]").classList.remove("active");
+        $("[data-lab-editor-page]").classList.remove("active");
         $("[data-editor-title]").textContent = id ? "文章预览" : "新增文章";
         requestAnimationFrame(fitPreviewShells);
         fillPostForm(item || {});
@@ -1909,9 +2058,22 @@
         $("[data-dashboard]").style.display = "none";
         $("[data-editor-page]").classList.remove("active");
         $("[data-now-editor-page]").classList.add("active");
+        $("[data-lab-editor-page]").classList.remove("active");
         $("[data-now-editor-title]").textContent = id ? "最近预览" : "新增最近";
         requestAnimationFrame(fitPreviewShells);
         fillNowPageForm(item || {});
+        setEditorMode(id ? "view" : "edit");
+      };
+
+      const showLabEditorRoute = (id = "") => {
+        const item = id ? state.labs.find((entry) => entry.id === id) : {};
+        $("[data-dashboard]").style.display = "none";
+        $("[data-editor-page]").classList.remove("active");
+        $("[data-now-editor-page]").classList.remove("active");
+        $("[data-lab-editor-page]").classList.add("active");
+        $("[data-lab-editor-title]").textContent = id ? "实验室预览" : "新增实验室";
+        requestAnimationFrame(fitPreviewShells);
+        fillLabForm(item || {});
         setEditorMode(id ? "view" : "edit");
       };
 
@@ -1919,12 +2081,14 @@
         $("[data-dashboard]").style.display = "";
         $("[data-editor-page]").classList.remove("active");
         $("[data-now-editor-page]").classList.remove("active");
+        $("[data-lab-editor-page]").classList.remove("active");
       };
 
       const route = () => {
         const path = window.location.pathname;
         const editMatch = path.match(/^\/admin\/posts\/([^/]+)\/edit$/);
         const nowEditMatch = path.match(/^\/admin\/now\/([^/]+)\/edit$/);
+        const labEditMatch = path.match(/^\/admin\/labs\/([^/]+)\/edit$/);
         if (path === "/admin/posts/new") {
           showPostEditorRoute("");
           return;
@@ -1933,12 +2097,20 @@
           showNowEditorRoute("");
           return;
         }
+        if (path === "/admin/labs/new") {
+          showLabEditorRoute("");
+          return;
+        }
         if (editMatch) {
           showPostEditorRoute(decodeURIComponent(editMatch[1]));
           return;
         }
         if (nowEditMatch) {
           showNowEditorRoute(decodeURIComponent(nowEditMatch[1]));
+          return;
+        }
+        if (labEditMatch) {
+          showLabEditorRoute(decodeURIComponent(labEditMatch[1]));
           return;
         }
         showDashboardRoute();
@@ -1972,6 +2144,26 @@
         });
       };
 
+      const renderLabPreview = () => {
+        const title = labPageForm.elements.title.value || "未命名实验";
+        const headerTitle = $("[data-lab-current-title]");
+        if (headerTitle) headerTitle.textContent = `--- ${title}`;
+        updatePreviewFrame($("[data-lab-preview]"), "post", {
+          html: markdown(labPageForm.elements.body.value),
+          title,
+          description: labPageForm.elements.description.value,
+          date: labPageForm.elements.date.value,
+          tags: labPageForm.elements.tags.value,
+        });
+      };
+
+      const renderActivePreview = () => {
+        const form = activeEditorForm();
+        if (form === nowPageForm) renderNowPreview();
+        else if (form === labPageForm) renderLabPreview();
+        else renderPreview();
+      };
+
       const syncScroll = (source, target) => {
         if (state.syncingScroll) return;
         const sourceRange = source.scrollHeight - source.clientHeight;
@@ -1993,8 +2185,7 @@
         activeImageControl("[data-image-alt]").value = image.alt;
         activeImageControl("[data-image-align]").value = image.align;
         activeImageControl("[data-image-width]").value = image.width;
-        if (activeEditorForm() === nowPageForm) renderNowPreview();
-        else renderPreview();
+        renderActivePreview();
       };
 
       const updateSelectedImage = () => {
@@ -2009,8 +2200,7 @@
         const next = `<figure className="content-image content-image--${align} content-image--w${width}">\n  <img src="${src}" alt="${alt}" />\n</figure>`;
         const body = activeEditorForm().elements.body;
         body.value = `${body.value.slice(0, image.index)}${next}${body.value.slice(image.end)}`;
-        if (activeEditorForm() === nowPageForm) renderNowPreview();
-        else renderPreview();
+        renderActivePreview();
       };
 
       const imageSnippet = () => {
@@ -2043,6 +2233,18 @@
         nowPageForm.elements.originalId.value = payload.id;
         await load();
         navigate(`/admin/now/${encodeURIComponent(payload.id)}/edit`);
+        status("保存成功");
+      };
+
+      const saveLab = async () => {
+        const payload = Object.fromEntries(new FormData(labPageForm).entries());
+        if (!payload.id) payload.id = slugify(payload.title);
+        await api("/api/admin/labs", { method: "POST", body: JSON.stringify(payload) });
+        state.selected.labs = payload.id;
+        labPageForm.elements.id.value = payload.id;
+        labPageForm.elements.originalId.value = payload.id;
+        await load();
+        navigate(`/admin/labs/${encodeURIComponent(payload.id)}/edit`);
         status("保存成功");
       };
 
@@ -2173,6 +2375,7 @@
       const renderCounts = () => {
         $("[data-count-posts]").textContent = state.posts.length;
         $("[data-count-now]").textContent = state.now.length;
+        $("[data-count-labs]").textContent = state.labs.length;
         $("[data-count-gallery]").textContent = state.gallery.length;
       };
 
@@ -2180,6 +2383,7 @@
         const data = await api("/api/admin/content");
         state.posts = data.posts || [];
         state.now = data.now || [];
+        state.labs = data.labs || [];
         state.gallery = (data.gallery || []).map(normalizeGalleryItem);
         state.capabilities = data.capabilities || { rowOne: [], rowTwo: [] };
         if (state.selectedGalleryId && !state.gallery.some((item) => item.id === state.selectedGalleryId)) {
@@ -2189,6 +2393,7 @@
         renderCounts();
         renderList("posts");
         renderList("now");
+        renderList("labs");
         renderGallery();
         renderCapabilities();
         renderTopbar();
@@ -2222,6 +2427,7 @@
         if (event.target.closest("[data-close-modal]")) closeModal();
         if (event.target.closest("[data-new-post]")) navigate("/admin/posts/new");
         if (event.target.closest("[data-new-now]")) navigate("/admin/now/new");
+        if (event.target.closest("[data-new-lab]")) navigate("/admin/labs/new");
         if (event.target.closest("[data-back-dashboard]")) navigate("/admin");
         if (event.target.closest("[data-start-edit]")) {
           setEditorMode("edit");
@@ -2232,10 +2438,15 @@
         if (event.target.closest("[data-save-now-page]")) {
           await saveNowPage();
         }
+        if (event.target.closest("[data-save-lab]")) {
+          await saveLab();
+        }
         const postPanelTab = event.target.closest("[data-post-panel-tab]");
         if (postPanelTab) showEditorPanel("post", postPanelTab.dataset.postPanelTab);
         const nowPanelTab = event.target.closest("[data-now-panel-tab]");
         if (nowPanelTab) showEditorPanel("now", nowPanelTab.dataset.nowPanelTab);
+        const labPanelTab = event.target.closest("[data-lab-panel-tab]");
+        if (labPanelTab) showEditorPanel("lab", labPanelTab.dataset.labPanelTab);
         if (event.target.closest("[data-use-cover]")) {
           const src = activeImageControl("[data-image-src]")?.value?.trim();
           if (src && activeEditorForm() === postForm) {
@@ -2253,8 +2464,7 @@
           body.value = `${body.value.slice(0, start)}${snippet}${body.value.slice(end)}`;
           body.focus();
           body.setSelectionRange(start + snippet.length, start + snippet.length);
-          if (activeEditorForm() === nowPageForm) renderNowPreview();
-          else renderPreview();
+          renderActivePreview();
         }
         if (event.target.closest("[data-edit-post]") && state.selected.posts) {
           closeModal();
@@ -2268,6 +2478,7 @@
         const pick = event.target.closest("[data-pick]");
         if (pick?.dataset.pick === "posts") navigate(`/admin/posts/${encodeURIComponent(pick.dataset.id)}/edit`);
         if (pick?.dataset.pick === "now") navigate(`/admin/now/${encodeURIComponent(pick.dataset.id)}/edit`);
+        if (pick?.dataset.pick === "labs") navigate(`/admin/labs/${encodeURIComponent(pick.dataset.id)}/edit`);
 
         if (event.target.closest("[data-open-post]")) {
           const id = state.selected.posts || postForm.elements.id.value;
@@ -2282,7 +2493,15 @@
           }
         }
         if (event.target.closest("[data-open-now]")) {
-          void resolvePreviewOrigin().then((origin) => window.open(`${origin}/now`, "_blank"));
+          const isArticle = $("[data-now-editor-page].active") && nowPageForm.elements.kind.value === "article";
+          const nowId = nowPageForm.elements.id.value;
+          void resolvePreviewOrigin().then((origin) =>
+            window.open(isArticle && nowId ? `${origin}/now/${nowId}` : `${origin}/now`, "_blank")
+          );
+        }
+        if (event.target.closest("[data-open-current-lab]")) {
+          const id = labPageForm.elements.id.value;
+          void resolvePreviewOrigin().then((origin) => window.open(id ? `${origin}/lab/${id}` : `${origin}/lab`, "_blank"));
         }
 
         if (event.target.closest("[data-delete-post]")) {
@@ -2370,6 +2589,7 @@
       document.addEventListener("input", (event) => {
         if (event.target.matches("[data-search-posts]")) renderList("posts");
         if (event.target.matches("[data-search-now]")) renderList("now");
+        if (event.target.matches("[data-search-labs]")) renderList("labs");
         if (event.target === postForm.elements.title && !postForm.elements.id.value) {
           postForm.elements.id.value = slugify(event.target.value);
         }
@@ -2388,11 +2608,24 @@
         if (
           event.target === nowPageForm.elements.title ||
           event.target === nowPageForm.elements.summary ||
-          event.target === nowPageForm.elements.date
+          event.target === nowPageForm.elements.date ||
+          event.target === nowPageForm.elements.tags
         ) {
           renderNowPreview();
         }
         if (event.target === nowPageForm.elements.body) renderNowPreview();
+        if (event.target === labPageForm.elements.title && !labPageForm.elements.id.value) {
+          labPageForm.elements.id.value = slugify(event.target.value);
+        }
+        if (
+          event.target === labPageForm.elements.title ||
+          event.target === labPageForm.elements.description ||
+          event.target === labPageForm.elements.date ||
+          event.target === labPageForm.elements.tags ||
+          event.target === labPageForm.elements.body
+        ) {
+          renderLabPreview();
+        }
         if (
           event.target.matches("[data-image-src]") ||
           event.target.matches("[data-image-alt]")
@@ -2455,7 +2688,7 @@
           event.target.dispatchEvent(new Event("input", { bubbles: true }));
           return;
         }
-        if (event.target.matches("[data-post-upload]") || event.target.matches("[data-now-upload]")) {
+        if (event.target.matches("[data-post-upload]") || event.target.matches("[data-now-upload]") || event.target.matches("[data-lab-upload]")) {
           const file = event.target.files?.[0];
           if (!file) return;
           const result = await upload(file);
@@ -2591,10 +2824,16 @@
         const range = nowPageForm.elements.body.scrollHeight - nowPageForm.elements.body.clientHeight;
         if (range > 0) scrollPreviewFrame($("[data-now-preview]"), nowPageForm.elements.body.scrollTop / range);
       });
+      labPageForm.elements.body.addEventListener("scroll", () => {
+        if (state.syncingScroll) return;
+        const range = labPageForm.elements.body.scrollHeight - labPageForm.elements.body.clientHeight;
+        if (range > 0) scrollPreviewFrame($("[data-lab-preview]"), labPageForm.elements.body.scrollTop / range);
+      });
       window.addEventListener("message", (event) => {
         const fromPostPreview = event.source === $("[data-live-preview]")?.contentWindow;
         const fromNowPreview = event.source === $("[data-now-preview]")?.contentWindow;
-        if (!fromPostPreview && !fromNowPreview) return;
+        const fromLabPreview = event.source === $("[data-lab-preview]")?.contentWindow;
+        if (!fromPostPreview && !fromNowPreview && !fromLabPreview) return;
         if (event.data?.type === "admin-preview:ready") {
           state.previewOrigin = event.origin;
           localStorage.setItem("contentAdminPreviewOrigin", event.origin);
@@ -2607,6 +2846,7 @@
           }
           if ($("[data-editor-page].active")) renderPreview();
           if ($("[data-now-editor-page].active")) renderNowPreview();
+          if ($("[data-lab-editor-page].active")) renderLabPreview();
         }
         if (event.data?.type === "admin-preview:image-select") {
           selectPreviewImage(Number(event.data.index));

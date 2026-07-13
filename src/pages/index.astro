@@ -7,13 +7,15 @@ import ImageBarrel from "../components/ImageBarrel.astro";
 import NowEditorialCurtain from "../components/NowEditorialCurtain.astro";
 import WritingSpotlightGrid from "../components/WritingSpotlightGrid.astro";
 import { site } from "../data/site";
-import { publishedPosts, sortByDateDesc } from "../lib/content";
+import { sortByDateDesc } from "../lib/content";
 import { getGalleryItems } from "../lib/gallery";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ScrollReveal from "../components/ScrollReveal.astro";
 
-const posts = publishedPosts(await getCollection("posts")).slice(0, 5);
-const nowEntries = sortByDateDesc(await getCollection("now")).slice(0, 3);
+const labs = sortByDateDesc(
+  (await getCollection("labs")).filter((lab) => !lab.data.draft),
+).slice(0, 5);
+const nowEntries = sortByDateDesc(await getCollection("now")).slice(0, 5);
 const nowItems = await Promise.all(
   nowEntries.map(async (entry) => ({
     entry,
@@ -30,7 +32,7 @@ const galleryItems = await getGalleryItems(60);
   <HeroSpotlight />
   <AboutStagePanel />
   <NowEditorialCurtain items={nowItems} />
-  <WritingSpotlightGrid posts={posts} />
+  <WritingSpotlightGrid labs={labs} />
   <HomeMarquee />
   <ScrollReveal animation="fade-up" duration={1200}>
     <ImageBarrel items={galleryItems} />

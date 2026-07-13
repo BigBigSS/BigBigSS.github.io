@@ -951,7 +951,8 @@ html.is-view-transitioning::view-transition {
   height: 100dvh;
   overflow-y: auto;
   background-color: var(--bg);
-  z-index: 100;
+  /* 层级压在导航胶囊(100)与详情顶栏(120)之下，保证顶部栏永不被文章层遮挡 */
+  z-index: 90;
   padding: clamp(72px, 10vw, 110px) 0 clamp(80px, 12vw, 140px);
   -webkit-overflow-scrolling: touch;
 }

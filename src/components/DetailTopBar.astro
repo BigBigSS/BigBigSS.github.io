@@ -1,0 +1,130 @@
+---
+/**
+ * 详情页统一顶栏：
+ * 右上角显示返回（RETURN / ESC，与幕帘顶栏同一套视觉语言）。
+ * fixed 定位 + 高层级，永远悬浮在内容之上，不随滚动消失；
+ * 右侧为主题切换按钮（fixed right:1.5rem 的 48px 圆钮）预留空位，不重叠。
+ */
+interface Props {
+  backHref: string; // 返回目标列表页，如 /now
+  backText?: string; // 返回按钮文案（大写展示）
+}
+
+const { backHref, backText = "RETURN" } = Astro.props;
+---
+
+<div class="detail-topbar" data-detail-topbar>
+  <a class="detail-topbar__back" href={backHref} data-detail-back>
+    <span class="detail-topbar__back-text">{backText} / ESC</span>
+    <span class="detail-topbar__back-icon" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </span>
+  </a>
+</div>
+
+<script>
+  // 统一返回逻辑：从列表页进入时走 history.back() 恢复列表滚动位置，
+  // 直达详情页（无来路）时按 href 跳转列表页；ESC 等价于点击返回。
+  const setupDetailTopBar = () => {
+    document.querySelectorAll<HTMLElement>("[data-detail-topbar]").forEach((bar) => {
+      const back = bar.querySelector<HTMLAnchorElement>("[data-detail-back]");
+      if (!back || back.dataset.bound === "1") return;
+      back.dataset.bound = "1";
+
+      const goBack = (e?: Event) => {
+        const target = back.getAttribute("href") || "/";
+        if (document.referrer && new URL(document.referrer, location.href).pathname === target) {
+          e?.preventDefault();
+          history.back();
+        } else if (e instanceof KeyboardEvent) {
+          location.href = target;
+        }
+      };
+
+      back.addEventListener("click", goBack);
+      document.addEventListener("keydown", (e) => {
+        // 全屏状态下 ESC 只负责退出全屏，不触发返回
+        if (e.key === "Escape" && !document.fullscreenElement) goBack(e);
+      });
+    });
+  };
+
+  setupDetailTopBar();
+  document.addEventListener("astro:page-load", setupDetailTopBar);
+</script>
+
+<style>
+  .detail-topbar {
+    --dtb-line: color-mix(in srgb, var(--text-primary) 16%, transparent);
+
+    position: fixed;
+    top: 24px;
+    left: 0;
+    right: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 48px;
+    /* 右侧为 fixed 的主题切换圆钮（right:1.5rem, 48px）让位 */
+    padding: 0 calc(1.5rem + 48px + 16px) 0 24px;
+    pointer-events: none; /* 中间镂空，不挡导航胶囊；两端子元素自行接管事件 */
+  }
+
+  /* ---------- 右上角：返回（RETURN / ESC，幕帘顶栏同款语言） ---------- */
+
+  .detail-topbar__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    height: 34px;
+    padding: 0 12px 0 16px;
+    border: 1px solid var(--dtb-line);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--text-secondary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-decoration: none;
+    text-transform: uppercase;
+    pointer-events: auto;
+    transition:
+      color 0.3s var(--ease-cinema),
+      border-color 0.3s var(--ease-cinema);
+  }
+
+  .detail-topbar__back:hover {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--text-primary) 45%, transparent);
+  }
+
+  .detail-topbar__back-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.35s var(--ease-cinema);
+  }
+
+  .detail-topbar__back:hover .detail-topbar__back-icon {
+    transform: rotate(90deg);
+  }
+
+  /* ---------- 窄屏适配：返回缩成图标 ---------- */
+
+  @media (max-width: 860px) {
+    .detail-topbar__back-text {
+      display: none;
+    }
+
+    .detail-topbar__back {
+      padding: 0 10px;
+    }
+  }
+</style>

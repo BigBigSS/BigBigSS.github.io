@@ -5,10 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-const PORT = Number(process.env.CONTENT_ADMIN_PORT || 4322);
+const PORT = Number(process.env.CONTENT_ADMIN_PORT || process.env.PORT || 4322);
 const ROOT = process.cwd();
 const NOW_DIR = path.join(ROOT, "content", "now");
 const POSTS_DIR = path.join(ROOT, "content", "posts");
+const LABS_DIR = path.join(ROOT, "content", "labs");
 const GALLERY_PATH = path.join(ROOT, "content", "gallery", "index.json");
 const CAPABILITIES_PATH = path.join(ROOT, "src", "data", "capabilities.json");
 const GALLERY_UPLOAD_DIR = path.join(ROOT, "public", "uploads", "gallery");
@@ -205,27 +206,51 @@ const readMdxDir = async (dir) => {
   return entries.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 };
 
+const normalizeTags = (value) =>
+  Array.isArray(value)
+    ? value.map((tag) => String(tag).trim()).filter(Boolean)
+    : String(value || "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+// 保存前先读回旧 frontmatter 作为底稿，表单没覆盖到的字段原样保留，
+// 避免 schema 新增字段后一经后台保存就被抹掉
+const readExistingData = async (dir, ...ids) => {
+  for (const id of ids.filter(Boolean)) {
+    try {
+      const parsed = parseFrontmatter(await readFile(path.join(dir, `${id}.mdx`), "utf-8"));
+      return parsed.data;
+    } catch {
+      // 文件不存在时视为新建
+    }
+  }
+  return {};
+};
+
 const writeNow = async (payload) => {
   const date = payload.date || new Date().toISOString().slice(0, 10);
   const id = safeSlug(payload.id || date, date);
   const originalId = safeSlug(payload.originalId || "");
   const file = `${id}.mdx`;
   await mkdir(NOW_DIR, { recursive: true });
+  const data = { ...(await readExistingData(NOW_DIR, originalId, id)) };
+  data.date = date;
+  if (payload.title !== undefined) {
+    if (payload.title) data.title = payload.title;
+    else delete data.title;
+  }
+  data.summary = payload.summary || data.summary || "未命名动态";
+  if (payload.kind !== undefined) data.kind = payload.kind === "article" ? "article" : "note";
+  if (payload.tags !== undefined) {
+    const tags = normalizeTags(payload.tags);
+    if (tags.length) data.tags = tags;
+    else delete data.tags;
+  }
   if (originalId && originalId !== id) {
     await rm(path.join(NOW_DIR, `${originalId}.mdx`), { force: true });
   }
-  await writeFile(
-    path.join(NOW_DIR, file),
-    toFrontmatter(
-      {
-        date,
-        ...(payload.title ? { title: payload.title } : {}),
-        summary: payload.summary || "未命名动态",
-      },
-      payload.body || ""
-    ),
-    "utf-8"
-  );
+  await writeFile(path.join(NOW_DIR, file), toFrontmatter(data, payload.body || ""), "utf-8");
   return { id, file };
 };
 
@@ -233,32 +258,55 @@ const writePost = async (payload) => {
   const id = safeSlug(payload.id || payload.title, `post-${Date.now()}`);
   const file = `${id}.mdx`;
   const originalId = safeSlug(payload.originalId || "");
-  const tags = Array.isArray(payload.tags)
-    ? payload.tags
-    : String(payload.tags || "")
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
   await mkdir(POSTS_DIR, { recursive: true });
+  const data = { ...(await readExistingData(POSTS_DIR, originalId, id)) };
+  data.title = payload.title || data.title || "未命名文章";
+  if (payload.description !== undefined) data.description = payload.description;
+  data.description = data.description || "";
+  data.date = payload.date || data.date || new Date().toISOString().slice(0, 10);
+  if (payload.tags !== undefined) data.tags = normalizeTags(payload.tags);
+  if (!Array.isArray(data.tags)) data.tags = [];
+  if (payload.status !== undefined || payload.draft !== undefined) {
+    data.draft = payload.status === "draft" || payload.draft === true;
+    data.status = payload.status || (data.draft ? "draft" : "published");
+  }
+  if (payload.cover !== undefined) {
+    if (payload.cover) data.cover = payload.cover;
+    else delete data.cover;
+  }
   if (originalId && originalId !== id) {
     await rm(path.join(POSTS_DIR, `${originalId}.mdx`), { force: true });
   }
-  await writeFile(
-    path.join(POSTS_DIR, file),
-    toFrontmatter(
-      {
-        title: payload.title || "未命名文章",
-        description: payload.description || "",
-        date: payload.date || new Date().toISOString().slice(0, 10),
-        tags,
-        draft: payload.status === "draft" || Boolean(payload.draft),
-        status: payload.status || (payload.draft ? "draft" : "published"),
-        ...(payload.cover ? { cover: payload.cover } : {}),
-      },
-      payload.body || ""
-    ),
-    "utf-8"
-  );
+  await writeFile(path.join(POSTS_DIR, file), toFrontmatter(data, payload.body || ""), "utf-8");
+  return { id, file };
+};
+
+const writeLab = async (payload) => {
+  const id = safeSlug(payload.id || payload.title, `lab-${Date.now()}`);
+  const file = `${id}.mdx`;
+  const originalId = safeSlug(payload.originalId || "");
+  await mkdir(LABS_DIR, { recursive: true });
+  const data = { ...(await readExistingData(LABS_DIR, originalId, id)) };
+  data.title = payload.title || data.title || "未命名实验";
+  if (payload.description !== undefined) data.description = payload.description;
+  data.description = data.description || "";
+  data.date = payload.date || data.date || new Date().toISOString().slice(0, 10);
+  if (payload.tags !== undefined) data.tags = normalizeTags(payload.tags);
+  if (!Array.isArray(data.tags)) data.tags = [];
+  data.demo = payload.demo || data.demo || "";
+  for (const field of ["download", "source"]) {
+    if (payload[field] !== undefined) {
+      if (payload[field]) data[field] = payload[field];
+      else delete data[field];
+    }
+  }
+  if (payload.status !== undefined || payload.draft !== undefined) {
+    data.draft = payload.status === "draft" || payload.draft === true;
+  }
+  if (originalId && originalId !== id) {
+    await rm(path.join(LABS_DIR, `${originalId}.mdx`), { force: true });
+  }
+  await writeFile(path.join(LABS_DIR, file), toFrontmatter(data, payload.body || ""), "utf-8");
   return { id, file };
 };
 
@@ -325,8 +373,10 @@ const uploadGalleryImage = async (payload) => {
   return { ...item, item };
 };
 
+const COLLECTION_DIRS = { posts: POSTS_DIR, now: NOW_DIR, labs: LABS_DIR };
+
 const deleteEntry = async (collection, id) => {
-  const dir = collection === "posts" ? POSTS_DIR : NOW_DIR;
+  const dir = COLLECTION_DIRS[collection];
   const file = `${safeSlug(id)}.mdx`;
   await rm(path.join(dir, file), { force: true });
   return { id };
@@ -335,6 +385,7 @@ const deleteEntry = async (collection, id) => {
 const readAll = async () => ({
   now: await readMdxDir(NOW_DIR),
   posts: await readMdxDir(POSTS_DIR),
+  labs: await readMdxDir(LABS_DIR),
   gallery: JSON.parse(await readFile(GALLERY_PATH, "utf-8")),
   capabilities: JSON.parse(await readFile(CAPABILITIES_PATH, "utf-8")),
 });
@@ -364,6 +415,10 @@ createServer(async (req, res) => {
       return send(res, 200, await writePost(await readBody(req)));
     }
 
+    if (req.method === "POST" && url.pathname === "/api/admin/labs") {
+      return send(res, 200, await writeLab(await readBody(req)));
+    }
+
     if (req.method === "POST" && url.pathname === "/api/admin/gallery") {
       const body = await readBody(req);
       const items = (body.items || []).map((item, index) => normalizeGalleryItem(item, index));
@@ -383,7 +438,7 @@ createServer(async (req, res) => {
 
     if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/")) {
       const [, , , collection, id] = url.pathname.split("/");
-      if ((collection === "posts" || collection === "now") && id) {
+      if ((collection === "posts" || collection === "now" || collection === "labs") && id) {
         return send(res, 200, await deleteEntry(collection, decodeURIComponent(id)));
       }
     }

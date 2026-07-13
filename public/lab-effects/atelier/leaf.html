@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaf — a metallic maple leaf</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #050505; }
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    perspective: 900px;
+  }
+  #tilt { will-change: transform; }
+  #tilt canvas { width: min(640px, 90vmin); height: min(640px, 90vmin); display: block; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="tilt">
+    <canvas id="fx" width="1280" height="1280"></canvas>
+  </div>
+</div>
+
+<script>
+(() => {
+  const ACCENT = '#d8c39a';   // 叶片主色，可换 #c9ccd6 / #d6b3c0 / #b98a5e
+  const MAX_TILT = 26;        // 最大倾角（度）
+
+  const stage = document.getElementById('stage');
+  const tiltEl = document.getElementById('tilt');
+  const canvas = document.getElementById('fx');
+  const ctx = canvas.getContext('2d');
+  const t0 = performance.now();
+
+  const mouse = { x: 0, y: 0, px: 0, py: 0, active: false };
+  stage.addEventListener('mousemove', (e) => {
+    const r = stage.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left - r.width / 2) / (r.width / 2);
+    mouse.y = (e.clientY - r.top - r.height / 2) / (r.height / 2);
+    mouse.px = e.clientX - r.left - r.width / 2;
+    mouse.py = e.clientY - r.top - r.height / 2;
+    mouse.active = true;
+  });
+  stage.addEventListener('mouseleave', () => { mouse.active = false; });
+
+  const hex2rgb = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const mix = (c1, c2, t) =>
+    'rgb(' + c1.map((v, i) => Math.round(v + (c2[i] - v) * t)).join(',') + ')';
+
+  // 真实枫叶剪影：右半边轮廓（x 向右，y 向上，基部在 0,0），左半镜像
+  const HALF = [
+    [0.000, 1.000],   // 主尖
+    [0.048, 0.820],   // 凹入主裂片
+    [0.135, 0.870],   // 锯齿
+    [0.100, 0.700],   // 深凹口
+    [0.400, 0.850],   // 上侧裂片尖
+    [0.330, 0.670],   // 凹
+    [0.430, 0.690],   // 锯齿
+    [0.280, 0.500],   // 深凹口
+    [0.660, 0.560],   // 下侧裂片尖
+    [0.530, 0.400],   // 凹
+    [0.620, 0.380],   // 锯齿
+    [0.380, 0.230],   // 深凹口
+    [0.540, 0.070],   // 基部裂片尖
+    [0.310, 0.040],   // 收
+    [0.130, 0.010],   // 基部肩
+    [0.000, -0.030],  // 叶柄接点
+  ];
+
+  const leafPath = (L) => {
+    const pts = [];
+    for (const [x, y] of HALF) pts.push([x * L, -y * L]);
+    for (let i = HALF.length - 2; i >= 1; i--) pts.push([-HALF[i][0] * L, -HALF[i][1] * L]);
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  };
+
+  let tex = null;
+  const ensureTexture = (W, H, cx, cy, L) => {
+    if (tex && tex.width === W) return;
+    const t = document.createElement('canvas');
+    t.width = W; t.height = H;
+    const tc = t.getContext('2d');
+    // 中性灰 = overlay 混合下的无操作
+    tc.fillStyle = 'rgb(128,128,128)';
+    tc.fillRect(0, 0, W, H);
+    // 从叶基呈扇形放射的拉丝纹理，顺着叶脉方向
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 420; i++) {
+      const a = (rnd() * 2.4 - 1.2) - Math.PI / 2; // 向上扇形
+      const r0 = rnd() * L * 0.25;
+      const r1 = r0 + L * (0.25 + rnd() * 0.8);
+      const jx = (rnd() - 0.5) * L * 0.5;
+      const light = rnd() > 0.5;
+      tc.strokeStyle = light
+        ? 'rgba(210,210,210,' + (0.03 + rnd() * 0.06).toFixed(3) + ')'
+        : 'rgba(40,40,40,' + (0.03 + rnd() * 0.06).toFixed(3) + ')';
+      tc.lineWidth = 0.6 + rnd() * 1.6;
+      tc.beginPath();
+      tc.moveTo(cx + Math.cos(a) * r0 + jx, cy + Math.sin(a) * r0);
+      tc.lineTo(cx + Math.cos(a) * r1 + jx * 1.4, cy + Math.sin(a) * r1);
+      tc.stroke();
+    }
+    // 细颗粒
+    for (let i = 0; i < 2600; i++) {
+      const x = rnd() * W, y = rnd() * H;
+      tc.fillStyle = rnd() > 0.5
+        ? 'rgba(200,200,200,' + (0.02 + rnd() * 0.05).toFixed(3) + ')'
+        : 'rgba(50,50,50,' + (0.02 + rnd() * 0.05).toFixed(3) + ')';
+      tc.fillRect(x, y, 1.4, 1.4);
+    }
+    tex = t;
+  };
+
+  let lightCur;
+  const draw = () => {
+    const W = canvas.width, H = canvas.height;
+    const time = (performance.now() - t0) / 1000;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const L = 400; // 主裂片长度（画布像素）
+    const cx = W / 2, cy = H / 2 + L * 0.42;
+
+    // 光照方向：跟随指针，无指针时缓慢巡游 —— 带阻尼让光泽滑行
+    const lx = mouse.active ? mouse.x : Math.sin(time * 0.4) * 0.8;
+    const ly = mouse.active ? mouse.y : Math.cos(time * 0.3) * 0.5;
+    const tgtA = Math.atan2(ly, lx);
+    const tgtBand = mouse.active ? (lx * Math.cos(tgtA) + ly * Math.sin(tgtA)) : Math.sin(time * 0.5);
+    if (lightCur === undefined) lightCur = { a: tgtA, band: tgtBand };
+    // 沿最短路径缓动角度
+    const dA = Math.atan2(Math.sin(tgtA - lightCur.a), Math.cos(tgtA - lightCur.a));
+    lightCur.a += dA * 0.07;
+    lightCur.band += (tgtBand - lightCur.band) * 0.07;
+    const lightA = lightCur.a;
+    const bandPos = lightCur.band;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    const sway = Math.sin(time * 0.8) * 0.012;
+    ctx.rotate(sway);
+
+    // --- 枫叶剪影 ---
+    ctx.beginPath();
+    leafPath(L);
+
+    const g0 = hex2rgb('#26211a');
+    const g1 = hex2rgb(ACCENT);
+    const g2 = hex2rgb('#f6efe0');
+
+    // 填充下的描边（内部会被填充盖住）
+    ctx.strokeStyle = 'rgba(245,240,232,0.20)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 第 1 层 — 基础色调
+    const base = ctx.createRadialGradient(0, -L * 0.45, L * 0.1, 0, -L * 0.45, L * 1.05);
+    base.addColorStop(0, mix(g0, g1, 0.50));
+    base.addColorStop(1, mix(g0, g1, 0.22));
+    ctx.fillStyle = base;
+    ctx.fill();
+
+    ctx.save();
+    ctx.clip();
+
+    // 第 2 层 — 曲面分面着色：每个裂片是一块曲面，按朝向光的程度受光。
+    // 沿裂片方向拉长的椭圆辉光 —— 没有生硬的直条。
+    const lobeDirs = [
+      { a: -Math.PI / 2, l: 1.0 },
+      { a: -Math.PI / 2 + 0.44, l: 0.85 },
+      { a: -Math.PI / 2 - 0.44, l: 0.85 },
+      { a: -Math.PI / 2 + 0.95, l: 0.58 },
+      { a: -Math.PI / 2 - 0.95, l: 0.58 },
+      { a: -Math.PI / 2 + 0.22, l: 0.92 },
+      { a: -Math.PI / 2 - 0.22, l: 0.92 },
+    ];
+    for (const lo of lobeDirs) {
+      const facing = Math.cos(lo.a - lightA); // 朝光 1，背光 -1
+      const midX = Math.cos(lo.a) * L * lo.l * 0.55;
+      const midY = Math.sin(lo.a) * L * lo.l * 0.55;
+      const bright = Math.max(facing, 0);
+      const dark = Math.max(-facing, 0);
+      ctx.save();
+      ctx.translate(midX, midY);
+      ctx.rotate(lo.a);
+      ctx.scale(L * lo.l * 0.62, L * 0.20); // 沿裂片拉长
+      const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      if (bright > 0.02) {
+        ctx.globalCompositeOperation = 'screen';
+        const aTop = 0.48 * Math.pow(bright, 1.6);
+        fg.addColorStop(0, mix(g1, g2, 0.75).replace('rgb', 'rgba').replace(')', ',' + aTop.toFixed(3) + ')'));
+        fg.addColorStop(0.55, mix(g1, g2, 0.4).replace('rgb', 'rgba').replace(')', ',' + (aTop * 0.4).toFixed(3) + ')'));
+        fg.addColorStop(1, 'rgba(0,0,0,0)');
+      } else {
+        ctx.globalCompositeOperation = 'multiply';
+        const d = 0.5 * Math.pow(dark, 1.4);
+        fg.addColorStop(0, 'rgba(' + Math.round(255 - d * 110) + ',' + Math.round(255 - d * 115) + ',' + Math.round(255 - d * 125) + ',1)');
+        fg.addColorStop(1, 'rgba(255,255,255,1)');
+      }
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 第 3 层 — 游走的镜面光斑：椭圆热点朝指针方向滑行，沿光轴扭转
+    const hx = Math.cos(lightA) * L * 0.42 * (0.4 + Math.abs(bandPos));
+    const hy = -L * 0.45 + Math.sin(lightA) * L * 0.42 * (0.4 + Math.abs(bandPos));
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.translate(hx, hy);
+    ctx.rotate(lightA + Math.PI / 2);
+    ctx.scale(L * 0.5, L * 0.26);
+    const spot = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    spot.addColorStop(0, 'rgba(255,253,247,0.62)');
+    spot.addColorStop(0.35, 'rgba(248,241,225,0.28)');
+    spot.addColorStop(0.7, 'rgba(224,210,176,0.08)');
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 第 4 层 — 拉丝金属纹理（静态，overlay 混合）
+    ensureTexture(W, H, cx, cy, L);
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.45;
+    ctx.drawImage(tex, -cx, -cy);
+    ctx.globalAlpha = 1;
+
+    // 第 5 层 — 边缘压暗，做出厚度
+    ctx.globalCompositeOperation = 'multiply';
+    const edge = ctx.createRadialGradient(0, -L * 0.45, L * 0.35, 0, -L * 0.45, L * 1.02);
+    edge.addColorStop(0, 'rgb(255,255,255)');
+    edge.addColorStop(0.85, 'rgb(235,232,226)');
+    edge.addColorStop(1, 'rgb(190,183,170)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(-L * 1.2, -L * 1.5, L * 2.4, L * 2.4);
+    ctx.restore();
+
+    // --- 叶脉：基部 → 各裂片尖，与光对齐时更亮 ---
+    const tips = [[0, 1], [0.4, 0.85], [-0.4, 0.85], [0.66, 0.56], [-0.66, 0.56]];
+    for (const [nx, ny] of tips) {
+      const tx = nx * L, ty = -ny * L;
+      const veinA = Math.atan2(ty, tx);
+      const align = Math.pow(Math.abs(Math.cos(veinA - lightA)), 3);
+      ctx.strokeStyle = 'rgba(253,249,239,' + (0.08 + align * 0.22).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, L * 0.02);
+      ctx.quadraticCurveTo(tx * 0.28, ty * 0.32, tx * 0.92, ty * 0.92);
+      ctx.stroke();
+    }
+
+    // 叶柄
+    ctx.strokeStyle = 'rgba(216,195,154,0.55)';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(L * 0.02, L * 0.18, -L * 0.04, L * 0.34);
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  // 3D 倾斜：交互只作用在叶片附近，越远影响越弱
+  const cur = { rx: 0, ry: 0, rz: 0, s: 1 };
+  const updateTilt = () => {
+    const RLEAF = 230; // 叶片视觉半径（px）
+    let t = { rx: 0, ry: 0, rz: 0, s: 1 };
+    if (mouse.active) {
+      const d = Math.hypot(mouse.px, mouse.py);
+      // 影响力：叶内为 1，到 1.7 倍半径处 smoothstep 减到 0
+      const f = Math.min(Math.max((d - RLEAF) / (RLEAF * 0.7), 0), 1);
+      const inf = 1 - f * f * (3 - 2 * f);
+      if (inf > 0.001) {
+        const nx = Math.min(Math.max(mouse.px / RLEAF, -1), 1);
+        const ny = Math.min(Math.max(mouse.py / RLEAF, -1), 1);
+        t = { rx: -ny * MAX_TILT * inf, ry: nx * MAX_TILT * inf, rz: nx * -4 * inf, s: 1 + 0.04 * inf };
+      }
+    }
+    const k = mouse.active ? 0.12 : 0.05; // 阻尼跟随；离开后缓慢回位
+    cur.rx += (t.rx - cur.rx) * k;
+    cur.ry += (t.ry - cur.ry) * k;
+    cur.rz += (t.rz - cur.rz) * k;
+    cur.s += (t.s - cur.s) * k;
+    tiltEl.style.transform =
+      'rotateX(' + cur.rx.toFixed(2) + 'deg) rotateY(' + cur.ry.toFixed(2) +
+      'deg) rotateZ(' + cur.rz.toFixed(2) + 'deg) scale(' + cur.s.toFixed(3) + ')';
+  };
+
+  const frame = () => {
+    updateTilt();
+    draw();
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+---
+title: Particules · 粒子聚形
+description: 几千个粒子从随机位置出发，被弹簧力拉进"生"字的笔画里；鼠标靠近会把它们推散，松手后又慢慢归位。目标点来自对字形位图的采样。
+date: 2026-07-13T12:01:00
+tags:
+  - webgl
+  - particles
+  - canvas-2d
+demo: /lab-effects/etudes/particules.html
+download: /lab-effects/particules-source.zip
+source: Claude Design「个人站设计灵感」项目的 Effets 三习作之一，已改写为零依赖单文件
+---
+
+## 字形转粒子目标
+
+把"生"字用衬线字体画到 340×340 的离屏 Canvas 上，`getImageData` 读回像素，按 3px 步长扫描 alpha 通道——不透明度超过阈值的格点就是一个粒子的归宿。换一个字符串常量就能换字，字形有多少笔画就自动生成多少粒子。
+
+和液态文字一样，监听 `document.fonts.ready` 在真实字体就绪后重建一次目标点。
+
+## 物理：全部在 CPU
+
+每帧对每个粒子做三件事，纯 JS 循环：
+
+1. **弹簧力**：向目标点方向施加 `(tgt - pos) * 0.014` 的加速度，不设最大速度，靠阻尼收敛。
+2. **鼠标斥力**：距离平方小于 0.09 时施加反向推力，越近越强（除以距离），粒子像被手指拨开。
+3. **微扰**：每个粒子按自己的相位叠一点正弦抖动，聚拢成字后仍在轻微呼吸，避免"定格"的死感。
+
+速度乘 0.9 的阻尼是整个手感的关键：弹簧 + 强阻尼 = 过阻尼系统，粒子滑进笔画里不会来回震荡。
+
+## 渲染：一次 drawArrays
+
+位置数组每帧 `bufferData` 上传，`gl.POINTS` 一个 draw call 画完。顶点着色器只传坐标和点大小，片段着色器把方形点裁成圆（`dot(c,c) > 0.25 discard`）。约 16% 的粒子随机标记为墨红色，其余深灰——一个 float 的 shade 属性混色即可。
+
+## 为什么不用 GPU 粒子
+
+几千个粒子的量级，CPU 每帧循环 + 重传 buffer 完全够用（毫秒级），换 transform feedback 或 FBO ping-pong 徒增复杂度。粒子数上到几十万再考虑。

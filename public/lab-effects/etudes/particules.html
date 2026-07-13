@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Particules — points settle into a glyph</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #efedea; }
+  body { color: #141414; font-family: ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .ui { position: fixed; z-index: 1; pointer-events: none; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .kicker { left: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; animation: fadeUp 1.2s ease both; }
+  .index { right: 4%; top: 7%; font-size: 10px; letter-spacing: 0.22em; }
+  .plate { left: 4%; bottom: 9%; animation: fadeUp 1.2s 0.15s ease both; }
+  .plate h1 { margin: 0; font-size: clamp(28px, 2.4vw, 40px); font-weight: 400; line-height: 1; }
+  .plate .sub { margin-top: 10px; font-size: 11px; letter-spacing: 0.14em; color: rgba(20,20,20,0.55); }
+  .hint { right: 4%; bottom: 5%; font-size: 10px; letter-spacing: 0.2em; color: rgba(20,20,20,0.45); }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="ui kicker">ÉTUDES WEBGL — TROIS ESSAIS</div>
+<div class="ui index">03 / 03</div>
+<div class="ui plate">
+  <h1>Particules</h1>
+  <div class="sub">thousands of points settle into a glyph</div>
+</div>
+<div class="ui hint">PUSH THEM AWAY — 推开粒子</div>
+
+<script>
+(() => {
+  const INK = '#7a3527';
+  const SPEED = 1;
+  const GLYPH = '生';   // 粒子汇聚的目标字形，支持 1–2 个字符
+
+  const canvas = document.getElementById('fx');
+  const gl = canvas.getContext('webgl', { antialias: false });
+  if (!gl) return;
+
+  const mkProg = (vsSrc, fsSrc) => {
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  };
+
+  const prog = mkProg(
+    `attribute vec2 aPos;attribute float aShade;uniform float uSize;varying float vShade;
+    void main(){vShade=aShade;gl_Position=vec4(aPos,0.0,1.0);gl_PointSize=uSize;}`,
+    `precision mediump float;varying float vShade;uniform vec3 uInk;
+    void main(){vec2 c=gl_PointCoord-0.5;if(dot(c,c)>0.25)discard;
+    vec3 col=mix(vec3(0.078),uInk,vShade);gl_FragColor=vec4(col,1.0);}`);
+  gl.useProgram(prog);
+  gl.clearColor(0.937, 0.929, 0.918, 1.0);
+
+  const posBuf = gl.createBuffer();
+  const shadeBuf = gl.createBuffer();
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  const aShade = gl.getAttribLocation(prog, 'aShade');
+  const u = {
+    size: gl.getUniformLocation(prog, 'uSize'),
+    ink: gl.getUniformLocation(prog, 'uInk'),
+  };
+
+  const hexRgb = (h) => {
+    h = h.replace('#', '');
+    return [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+  };
+  const ink = hexRgb(INK);
+
+  const sim = { n: 0, tgt: null, pos: null, vel: null };
+
+  // 某些嵌入环境（iframe/预览面板）首帧布局尺寸为 0，取不到时退回 window 尺寸
+  const sizeOf = () => ({
+    w: canvas.clientWidth || window.innerWidth,
+    h: canvas.clientHeight || window.innerHeight,
+  });
+
+  // 把字形画到离屏 canvas，采样 alpha 通道得到粒子目标点
+  const buildParticles = () => {
+    const { w, h } = sizeOf();
+    if (w < 4 || h < 4) return;
+    const glyph = GLYPH.slice(0, 2);
+    const N = 340;
+    const tc = document.createElement('canvas');
+    tc.width = N; tc.height = N;
+    const x = tc.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#000'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = `${glyph.length > 1 ? 190 : 280}px 'Songti SC', 'Noto Serif SC', serif`;
+    x.fillText(glyph, N / 2, N / 2 + 10);
+    const data = x.getImageData(0, 0, N, N).data;
+    const targets = [];
+    for (let py = 0; py < N; py += 3) for (let px = 0; px < N; px += 3) {
+      if (data[(py * N + px) * 4 + 3] > 120) targets.push(px / N - 0.5, 0.5 - py / N);
+    }
+    const scale = 0.78 * Math.min(w, h);
+    const n = targets.length / 2;
+    sim.n = n;
+    sim.tgt = new Float32Array(n * 2);
+    sim.pos = new Float32Array(n * 2);
+    sim.vel = new Float32Array(n * 2);
+    const shade = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      sim.tgt[i * 2] = targets[i * 2] * scale * 2 / w;
+      sim.tgt[i * 2 + 1] = targets[i * 2 + 1] * scale * 2 / h;
+      sim.pos[i * 2] = (Math.random() * 2 - 1) * 1.4;
+      sim.pos[i * 2 + 1] = (Math.random() * 2 - 1) * 1.4;
+      shade[i] = Math.random() < 0.16 ? 1 : 0;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, shadeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, shade, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, sim.pos, gl.DYNAMIC_DRAW);
+  };
+
+  const resize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const { w, h } = sizeOf();
+    canvas.width = Math.max(2, w * dpr);
+    canvas.height = Math.max(2, h * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    buildParticles();
+  };
+  window.addEventListener('resize', resize);
+  resize();
+
+  // 系统字体可能异步就绪，字体加载完成后按真实字形重建目标点
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildParticles);
+
+  const m = { tx: -5, ty: -5, x: -5, y: -5 };
+  window.addEventListener('pointermove', (e) => {
+    m.tx = e.clientX / window.innerWidth;
+    m.ty = 1 - e.clientY / window.innerHeight;
+  });
+
+  const t0 = performance.now();
+  const frame = () => {
+    const t = (performance.now() - t0) / 1000 * SPEED;
+    m.x += (m.tx - m.x) * 0.07;
+    m.y += (m.ty - m.y) * 0.07;
+    if (!sim.n) resize();   // 初始化时布局尺寸为 0 的话，等拿到尺寸再建粒子
+    if (sim.n) {
+      const mx = m.x * 2 - 1, my = m.y * 2 - 1;
+      const dt = Math.min(2, SPEED);
+      const { pos, vel, tgt } = sim;
+      const jt = t * 0.9;
+      for (let i = 0; i < sim.n; i++) {
+        const ix = i * 2, iy = ix + 1;
+        let ax = (tgt[ix] - pos[ix]) * 0.014 * dt;
+        let ay = (tgt[iy] - pos[iy]) * 0.014 * dt;
+        const dx = pos[ix] - mx, dy = pos[iy] - my;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < 0.09) {
+          const f = (0.09 - d2) * 0.033 * dt / Math.max(0.02, Math.sqrt(d2));
+          ax += dx * f; ay += dy * f;
+        }
+        ax += Math.sin(jt + i * 0.37) * 0.00012;
+        ay += Math.cos(jt * 1.3 + i * 0.53) * 0.00012;
+        vel[ix] = (vel[ix] + ax) * 0.9;
+        vel[iy] = (vel[iy] + ay) * 0.9;
+        pos[ix] += vel[ix]; pos[iy] += vel[iy];
+      }
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform1f(u.size, Math.min(window.devicePixelRatio || 1, 2) * 2.4);
+      gl.uniform3f(u.ink, ink[0], ink[1], ink[2]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, shadeBuf);
+      gl.enableVertexAttribArray(aShade);
+      gl.vertexAttribPointer(aShade, 1, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.POINTS, 0, sim.n);
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

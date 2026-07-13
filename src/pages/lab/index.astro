@@ -1,0 +1,316 @@
+---
+import { getCollection } from "astro:content";
+import { site } from "../../data/site";
+import { sortByDateDesc } from "../../lib/content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const labs = sortByDateDesc(
+  (await getCollection("labs")).filter((lab) => !lab.data.draft),
+);
+
+const formatLabDate = (d: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(d)
+    .replaceAll("-", ".");
+
+const totalCount = String(labs.length).padStart(2, "0");
+const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
+---
+
+<BaseLayout
+  title={`实验室 · ${site.name}`}
+  description="hui 收集的交互动效实验：每一个条目都是一个能跑起来的现场演示。"
+>
+  <section class="lab-page">
+    <header class="lab-masthead">
+      <div class="lab-masthead__bar">
+        <span>LAB 2</span>
+        <span class="lab-masthead__dot" aria-hidden="true">·</span>
+        <span>{totalCount} EXPERIMENTS</span>
+        <span class="lab-masthead__dot" aria-hidden="true">·</span>
+        <span>{year}</span>
+        <span class="lab-masthead__byline">/ {site.handle}</span>
+      </div>
+
+      <h1 class="lab-title">实验室</h1>
+      <p class="lab-intro">
+        交互动效收藏馆。每个条目点进去都是一个跑在你浏览器里的现场演示，附一份拆解笔记。
+      </p>
+    </header>
+
+    <ol class="lab-index" role="list">
+      {
+        labs.map((lab, idx) => (
+          <li>
+            <a class="entry" href={`/lab/${lab.id}`}>
+              <span class="entry__no" aria-hidden="true">
+                №{String(idx + 1).padStart(2, "0")}
+              </span>
+              <div class="entry__main">
+                <h2 class="entry__title">{lab.data.title}</h2>
+                {lab.data.tags.length > 0 && (
+                  <ul class="entry__tags">
+                    {lab.data.tags.map((tag) => (
+                      <li>{tag}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <span class="entry__meta">
+                <span>{formatLabDate(lab.data.date)}</span>
+                <span class="entry__sep" aria-hidden="true">/</span>
+                <span>LIVE DEMO</span>
+              </span>
+              <span class="entry__arrow" aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))
+      }
+
+      {labs.length === 0 && <li class="lab-empty">No experiments yet.</li>}
+    </ol>
+  </section>
+</BaseLayout>
+
+<style>
+  .lab-page {
+    --lab-line: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --lab-row-hover: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+
+    width: min(880px, calc(100vw - 48px));
+    margin-inline: auto;
+    padding: clamp(72px, 10vw, 130px) 0 clamp(80px, 12vw, 140px);
+  }
+
+  /* =================== Masthead =================== */
+
+  .lab-masthead {
+    display: grid;
+  }
+
+  .lab-masthead__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-top: 1px solid var(--lab-line);
+    border-bottom: 1px solid var(--lab-line);
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .lab-masthead__dot {
+    opacity: 0.5;
+  }
+
+  .lab-masthead__byline {
+    margin-left: auto;
+    color: var(--text-secondary);
+    letter-spacing: 0.16em;
+  }
+
+  .lab-title {
+    margin: clamp(36px, 6vw, 56px) 0 14px;
+    color: var(--text-primary);
+    font-size: clamp(2.4rem, 5.4vw, 4rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+
+  .lab-intro {
+    margin: 0;
+    max-width: 44ch;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  /* =================== Index =================== */
+
+  .lab-index {
+    display: flex;
+    flex-direction: column;
+    margin: clamp(48px, 7vw, 72px) 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--lab-line);
+  }
+
+  .lab-index > li {
+    display: contents;
+  }
+
+  .entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto 24px;
+    grid-template-areas: "no main meta arrow";
+    column-gap: 28px;
+    align-items: baseline;
+    padding: clamp(26px, 3.6vw, 34px) 0;
+    border-bottom: 1px solid var(--lab-line);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .entry::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    pointer-events: none;
+    transition: background-color 0.4s var(--ease-cinema);
+    z-index: -1;
+  }
+
+  .entry:hover::after,
+  .entry:focus-visible::after {
+    background: var(--lab-row-hover);
+  }
+
+  .entry:focus-visible {
+    outline: none;
+  }
+
+  .entry__no {
+    grid-area: no;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.92rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    user-select: none;
+    transition: color 0.4s var(--ease-cinema);
+  }
+
+  .entry:hover .entry__no,
+  .entry:focus-visible .entry__no {
+    color: var(--text-primary);
+  }
+
+  .entry__main {
+    grid-area: main;
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    transition: transform 0.4s var(--ease-cinema);
+  }
+
+  .entry:hover .entry__main,
+  .entry:focus-visible .entry__main {
+    transform: translateX(6px);
+  }
+
+  .entry__title {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+    font-weight: 600;
+    line-height: 1.22;
+    letter-spacing: -0.02em;
+  }
+
+  .entry__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .entry__tags li {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .entry__meta {
+    grid-area: meta;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  .entry__sep {
+    opacity: 0.5;
+  }
+
+  .entry__arrow {
+    grid-area: arrow;
+    align-self: center;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 1.05rem;
+    line-height: 1;
+    text-align: right;
+    transition:
+      color 0.4s var(--ease-cinema),
+      transform 0.4s var(--ease-cinema);
+  }
+
+  .entry:hover .entry__arrow,
+  .entry:focus-visible .entry__arrow {
+    color: var(--text-primary);
+    transform: translateX(8px);
+  }
+
+  .lab-empty {
+    padding: 64px 0;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.18em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 720px) {
+    .lab-masthead__byline {
+      width: 100%;
+      margin-left: 0;
+      padding-top: 6px;
+    }
+
+    .entry {
+      grid-template-columns: 44px minmax(0, 1fr) 20px;
+      grid-template-areas:
+        "no main arrow"
+        ".  meta meta";
+      column-gap: 16px;
+      row-gap: 8px;
+      padding: 22px 0;
+    }
+
+    .entry__no {
+      font-size: 0.84rem;
+    }
+
+    .entry__title {
+      font-size: 1.18rem;
+    }
+
+    .entry__meta {
+      font-size: 0.72rem;
+    }
+  }
+</style>

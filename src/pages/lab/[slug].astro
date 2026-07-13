@@ -1,0 +1,698 @@
+---
+import { getCollection, render } from "astro:content";
+import DetailTopBar from "../../components/DetailTopBar.astro";
+import { site } from "../../data/site";
+import { formatDate, sortByDateDesc } from "../../lib/content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const labs = sortByDateDesc(
+    (await getCollection("labs")).filter((lab) => !lab.data.draft),
+  );
+
+  return labs.map((lab) => ({
+    params: { slug: lab.id },
+    props: { lab },
+  }));
+}
+
+const { lab } = Astro.props;
+const { Content } = await render(lab);
+
+const labs = sortByDateDesc(
+  (await getCollection("labs")).filter((l) => !l.data.draft),
+);
+const currentIndex = labs.findIndex((l) => l.id === lab.id);
+const entryNumber =
+  currentIndex !== -1 ? String(currentIndex + 1).padStart(2, "0") : "00";
+const totalNumber = String(labs.length).padStart(2, "0");
+
+const prevLab = currentIndex > 0 ? labs[currentIndex - 1] : null;
+const nextLab =
+  currentIndex !== -1 && currentIndex < labs.length - 1
+    ? labs[currentIndex + 1]
+    : null;
+---
+
+<BaseLayout
+  title={`${lab.data.title} · 实验室 · ${site.name}`}
+  description={lab.data.description}
+>
+  <!-- 统一详情顶栏：左上路由路径 / 右上返回 -->
+  <DetailTopBar backHref="/lab" backText="返回实验室" />
+
+  <section class="workbench" data-demo-stage>
+    <!-- ============ 左侧：工具栏 ============ -->
+    <aside class="rail" aria-label="实验工具栏">
+      <div class="rail__group">
+        <button
+          type="button"
+          class="rail__btn"
+          data-demo-fullscreen
+          title="全屏体验"
+          aria-label="全屏体验"
+        >⛶</button>
+        <button
+          type="button"
+          class="rail__btn"
+          data-demo-reload
+          title="重置演示"
+          aria-label="重置演示"
+        >↻</button>
+        <a
+          class="rail__btn"
+          href={lab.data.demo}
+          target="_blank"
+          rel="noopener"
+          title="新标签页打开"
+          aria-label="新标签页打开"
+        >↗</a>
+        {
+          lab.data.download && (
+            <a
+              class="rail__btn"
+              href={lab.data.download}
+              download
+              title="下载原码"
+              aria-label="下载原码"
+            >⬇</a>
+          )
+        }
+      </div>
+
+      <div class="rail__group rail__group--nav">
+        {
+          prevLab ? (
+            <a class="rail__btn" href={`/lab/${prevLab.id}`} title={`上一个：${prevLab.data.title}`} aria-label={`上一个：${prevLab.data.title}`}>↑</a>
+          ) : (
+            <span class="rail__btn rail__btn--disabled" aria-hidden="true">↑</span>
+          )
+        }
+        {
+          nextLab ? (
+            <a class="rail__btn" href={`/lab/${nextLab.id}`} title={`下一个：${nextLab.data.title}`} aria-label={`下一个：${nextLab.data.title}`}>↓</a>
+          ) : (
+            <span class="rail__btn rail__btn--disabled" aria-hidden="true">↓</span>
+          )
+        }
+      </div>
+
+      <div class="rail__tail" aria-hidden="true">
+        <span class="rail__index">EXP №{entryNumber}</span>
+      </div>
+    </aside>
+
+    <!-- ============ 顶部：标题栏 ============ -->
+    <header class="nameplate">
+      <div class="nameplate__id">
+        <span class="nameplate__no">№{entryNumber}</span>
+        <span class="nameplate__sep" aria-hidden="true">/</span>
+        <span class="nameplate__total">{totalNumber}</span>
+      </div>
+      <h1 class="nameplate__title">{lab.data.title}</h1>
+      <span class="nameplate__hint">INTERACTIVE · LIVE DEMO — 直接上手玩</span>
+    </header>
+
+    <!-- ============ 中间：渲染屏 ============ -->
+    <div class="stage">
+      <div class="stage__frame-wrap">
+        <iframe
+          class="stage__frame"
+          src={lab.data.demo}
+          title={`${lab.data.title} — 现场演示`}
+          loading="eager"
+          allow="fullscreen"
+        ></iframe>
+      </div>
+    </div>
+
+    <!-- ============ 右侧：文字说明 ============ -->
+    <aside class="notes" aria-label="拆解笔记">
+      <div class="notes__scroll">
+        <div class="notes__label">NOTES / 拆解笔记</div>
+
+        <p class="notes__desc">{lab.data.description}</p>
+
+        <dl class="notes__meta">
+          <div class="notes__meta-row">
+            <dt>DATE</dt>
+            <dd>{formatDate(lab.data.date)}</dd>
+          </div>
+          <div class="notes__meta-row">
+            <dt>STACK</dt>
+            <dd class="notes__tags">
+              {lab.data.tags.map((tag) => <span class="notes__tag">{tag}</span>)}
+            </dd>
+          </div>
+          {
+            lab.data.source && (
+              <div class="notes__meta-row">
+                <dt>SOURCE</dt>
+                <dd>{lab.data.source}</dd>
+              </div>
+            )
+          }
+        </dl>
+
+        {
+          lab.data.download && (
+            <a class="notes__download" href={lab.data.download} download>
+              <span class="notes__download-icon" aria-hidden="true">↓</span>
+              <span class="notes__download-text">DOWNLOAD SOURCE</span>
+              <span class="notes__download-size" aria-hidden="true">.ZIP</span>
+            </a>
+          )
+        }
+
+        <div class="notes__divider" aria-hidden="true"></div>
+
+        <article class="prose-shell notes__prose">
+          <Content />
+        </article>
+
+        <div class="notes__eof" aria-hidden="true">
+          <span class="notes__eof-line"></span>
+          <span class="notes__eof-text">END OF EXPERIMENT</span>
+          <span class="notes__eof-line"></span>
+        </div>
+      </div>
+    </aside>
+  </section>
+</BaseLayout>
+
+<script>
+  // 工具栏：全屏 + 重置演示
+  const setupWorkbench = () => {
+    document
+      .querySelectorAll<HTMLElement>("[data-demo-stage]")
+      .forEach((root) => {
+        const wrap = root.querySelector<HTMLElement>(".stage__frame-wrap");
+        const frame = root.querySelector<HTMLIFrameElement>(".stage__frame");
+
+        root
+          .querySelector<HTMLButtonElement>("[data-demo-fullscreen]")
+          ?.addEventListener("click", () => {
+            if (document.fullscreenElement) {
+              document.exitFullscreen();
+            } else {
+              wrap?.requestFullscreen?.();
+            }
+          });
+
+        root
+          .querySelector<HTMLButtonElement>("[data-demo-reload]")
+          ?.addEventListener("click", () => {
+            if (frame) frame.src = frame.src;
+          });
+      });
+  };
+
+  setupWorkbench();
+  document.addEventListener("astro:page-load", setupWorkbench);
+</script>
+
+<style is:global>
+  /* 详情页整屏固定：桌面端锁死页面滚动，滚动只发生在右侧笔记栏内部 */
+  @media (min-width: 961px) {
+    html:has(.workbench),
+    html:has(.workbench) body {
+      height: 100%;
+      overflow: hidden;
+    }
+  }
+</style>
+
+<style>
+  /* =========================================================
+     工作台布局：
+     ┌──────┬─────────────────────┬──────────────┐
+     │ rail │        stage        │    notes     │
+     │      ├─────────────────────┤   (scroll)   │
+     │      │      nameplate      │              │
+     └──────┴─────────────────────┴──────────────┘
+     ========================================================= */
+
+  .workbench {
+    --lab-line: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --rail-w: 64px;
+    --notes-w: min(400px, 30vw);
+    --bench-top: clamp(76px, 10vh, 104px);
+
+    display: grid;
+    grid-template-areas:
+      "rail plate notes"
+      "rail stage notes";
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--notes-w);
+    grid-template-rows: auto minmax(0, 1fr);
+
+    width: calc(100vw - 24px);
+    height: calc(100dvh - var(--bench-top) - 12px);
+    min-height: 0;
+    margin: var(--bench-top) auto 12px;
+
+    border: 1px solid var(--lab-line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  /* =================== 左侧工具栏 =================== */
+
+  .rail {
+    grid-area: rail;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    padding: 18px 0;
+    border-right: 1px solid var(--lab-line);
+  }
+
+  .rail__group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .rail__group--nav {
+    margin-top: auto;
+  }
+
+  .rail__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--lab-line);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.95rem;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 0.3s var(--ease-cinema),
+      border-color 0.3s var(--ease-cinema),
+      background-color 0.3s var(--ease-cinema);
+  }
+
+  .rail__btn:hover {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--text-primary) 40%, transparent);
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  }
+
+  .rail__btn--disabled {
+    opacity: 0.3;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .rail__tail {
+    display: flex;
+    justify-content: center;
+    padding-top: 14px;
+  }
+
+  .rail__index {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    writing-mode: vertical-rl;
+    text-transform: uppercase;
+    user-select: none;
+  }
+
+  /* =================== 中间渲染屏 =================== */
+
+  .stage {
+    grid-area: stage;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .stage__frame-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #101010;
+  }
+
+  .stage__frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  /* =================== 顶部标题栏 =================== */
+
+  .nameplate {
+    grid-area: plate;
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--lab-line);
+  }
+
+  .nameplate__id {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+
+  .nameplate__sep {
+    opacity: 0.5;
+  }
+
+  .nameplate__title {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: clamp(1.2rem, 2vw, 1.6rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nameplate__hint {
+    margin-left: auto;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* =================== 右侧文字说明 =================== */
+
+  .notes {
+    grid-area: notes;
+    min-height: 0;
+    border-left: 1px solid var(--lab-line);
+  }
+
+  .notes__scroll {
+    height: 100%;
+    overflow-y: auto;
+    padding: 26px 26px 34px;
+    scrollbar-width: thin;
+  }
+
+  .notes__label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-primary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--text-primary);
+  }
+
+  .notes__label::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--text-primary);
+  }
+
+  .notes__desc {
+    margin: 18px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .notes__meta {
+    display: grid;
+    margin: 24px 0 0;
+    border-top: 1px solid var(--lab-line);
+  }
+
+  .notes__meta-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: baseline;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--lab-line);
+  }
+
+  .notes__meta-row dt {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .notes__meta-row dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .notes__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .notes__tag {
+    padding: 2px 9px;
+    border: 1px solid var(--lab-line);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .notes__download {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 22px;
+    padding: 13px 16px;
+    border: 1px solid var(--text-primary);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    text-transform: uppercase;
+    overflow: hidden;
+    transition: color 0.35s var(--ease-cinema);
+  }
+
+  /* hover 时从左向右扫过的填充层 */
+  .notes__download::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--text-primary);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.4s var(--ease-cinema);
+    z-index: 0;
+  }
+
+  .notes__download:hover::before {
+    transform: scaleX(1);
+  }
+
+  .notes__download:active {
+    transform: scale(0.985);
+  }
+
+  .notes__download > span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .notes__download:hover {
+    color: var(--bg);
+  }
+
+  .notes__download-icon {
+    font-size: 0.92rem;
+    line-height: 1;
+    transition: transform 0.35s var(--ease-cinema);
+  }
+
+  .notes__download:hover .notes__download-icon {
+    animation: download-nudge 0.9s var(--ease-cinema) infinite;
+  }
+
+  @keyframes download-nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(3px);
+    }
+  }
+
+  .notes__download-size {
+    margin-left: auto;
+    opacity: 0.55;
+    font-weight: 500;
+    transition: opacity 0.35s var(--ease-cinema);
+  }
+
+  .notes__download:hover .notes__download-size {
+    opacity: 0.85;
+  }
+
+  .notes__divider {
+    height: 1px;
+    margin: 24px 0;
+    background: var(--lab-line);
+  }
+
+  .notes__prose {
+    font-size: 0.92rem;
+    line-height: 1.8;
+  }
+
+  .notes__prose :global(h2) {
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin: 32px 0 14px;
+    padding-top: 18px;
+    border-top: 1px solid var(--lab-line);
+  }
+
+  .notes__prose :global(h2:first-child) {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .notes__prose :global(p) {
+    margin: 0 0 16px;
+  }
+
+  .notes__prose :global(ul),
+  .notes__prose :global(ol) {
+    padding-left: 20px;
+    margin: 0 0 16px;
+  }
+
+  .notes__prose :global(li) {
+    margin-bottom: 8px;
+  }
+
+  .notes__eof {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 34px;
+  }
+
+  .notes__eof-line {
+    flex: 1;
+    height: 1px;
+    background: var(--lab-line);
+  }
+
+  .notes__eof-text {
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.26em;
+  }
+
+  /* =================== 响应式：窄屏纵向堆叠 =================== */
+
+  @media (max-width: 960px) {
+    .workbench {
+      grid-template-areas:
+        "rail"
+        "plate"
+        "stage"
+        "notes";
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto minmax(320px, 55vh) auto;
+      height: auto;
+      min-height: 0;
+    }
+
+    .rail {
+      flex-direction: row;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
+      border-right: none;
+      border-bottom: 1px solid var(--lab-line);
+    }
+
+    .rail__group {
+      flex-direction: row;
+    }
+
+    .rail__group--nav {
+      margin-top: 0;
+      margin-left: auto;
+    }
+
+    .rail__tail {
+      display: none;
+    }
+
+    .notes {
+      border-left: none;
+      border-top: 1px solid var(--lab-line);
+    }
+
+    .notes__scroll {
+      height: auto;
+      overflow: visible;
+    }
+
+    .nameplate {
+      flex-wrap: wrap;
+    }
+
+    .nameplate__title {
+      white-space: normal;
+    }
+
+    .nameplate__hint {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
+</style>

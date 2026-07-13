@@ -1,0 +1,44 @@
+---
+title: Works 卡片阵列
+description: 15 张卡片沿 Z 轴排成纵深阵列，hover 浮起、点击飞至相机前展开详情。卡片纹理由 Canvas 2D 实时绘制。
+date: 2026-07-06
+tags:
+  - three.js
+  - gsap
+  - raycaster
+demo: /lab-effects/ohmyking/effect3-cards.html
+download: /lab-effects/works-cards-source.zip
+source: 抽取自 ohmyking.vercel.app 的 page7 场景，代码未做改动
+---
+
+## 整体结构
+
+`page7.js` 是非模块的 IIFE（`Page7Module`），依赖全局 `THREE` 与 `gsap`（three.min.js / gsap.min.js 先行加载），入口为 `Page7Module.init(containerId)`。
+
+## 卡片构成
+
+- 每张卡是 `BoxGeometry` 薄盒：3.2 × 1.8 × 0.01。
+- 六面材质独立：正面为内容纹理，背面纯白（`0xffffff`），侧面浅灰（`0xdddddd`）。
+- 15 张卡沿 Z 轴等距排列（间距 0.6），加入同一个 `Group`，透视相机下形成纵深阵列。
+
+## 纹理生成
+
+正面纹理不是静态贴图，由 Canvas 2D 实时绘制：
+
+1. 创建 1024 宽的离屏 canvas（高度按卡片宽高比换算）。
+2. 底图 `card1.png` 先经预处理：按 `Math.max` 缩放比裁切填满目标区域，保持宽高比。
+3. 在底图上叠加标题、副标题等排版。
+4. 以 `CanvasTexture` 提交给 three.js，`LinearMipmapLinearFilter` 缓解缩小锯齿。
+
+修改卡片内容只需改画布绘制逻辑，不需要重新出图。
+
+## 交互流程
+
+- **拾取**：`Raycaster` 每帧从鼠标位置发射线，检测命中的卡片。
+- **hover**：命中卡片用 GSAP 沿 Y 轴顶起固定距离，移出后落回。
+- **点击展开**：整组卡片通过 `cardsGroup.position` 位移让位；选中卡片用 GSAP 飞向相机；动画结束后 DOM 层的 `.preview-container` 面板淡入，展示日期、标题、描述等详情。
+- **关闭**：反向执行——面板淡出、卡片飞回原位、组归位。
+
+## WebGL 与 DOM 的分工
+
+三维部分（阵列、浮起、飞行）全部在 WebGL 内完成；详情内容由 DOM 面板承接。飞行动画结束的时间点与 DOM 面板淡入衔接，视觉上是连续的"卡片翻开"，实际是两套渲染体系交接。文字排版、文本选中、无障碍语义等由 DOM 提供，WebGL 不承担文本渲染。

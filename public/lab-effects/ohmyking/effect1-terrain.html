@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effect 1 — Terrain (page4)</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="src/styles/styles.css">
+    <style>
+        /* 抽取页胶水：还原原站 page4 时刻的 body 状态（内联脚本 bodyCSS.red），并恢复可见光标 */
+        body { background-color: rgb(242, 45, 64); cursor: auto; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <!-- 原站 #WHOAMI 水印，固化为 page4 时刻的 whoamiCSS.bakground 状态 -->
+    <div class="WHOAMI" id="WHOAMI" style="top: 53vh; right: 50vw; color: rgba(239, 238, 236, 0.3); font-size: 23vw;">WHOAMI</div>
+
+    <!-- ↓↓↓ 以下 section 原样复制自原站 index.html (page4) ↓↓↓ -->
+            <section id="page4" class="page-section active-section">
+                <div id="three-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;"></div>
+                <div>
+                    <div class="whoami-title">A Learner</div>
+                    <div style="z-index: 1000; position: absolute; top: 28vh; width: 36vw; height: 0; left: 2vw; bottom: 0; border: 1px solid rgb(0, 0, 0);"></div>
+                    <a href="https://ohmyking.github.io/blog/" target="_blank">
+                        <div class="middle-text-button" style="top: 28vh; left: 2.8vw; width: 35vw; height: 3vh; margin-top: 1vh;">
+                            <div style="position: relative; float: left; color: rgb(0, 0, 0); font-size: 1.8vh; text-align: left;">to my Blog</div>
+                            <div style="position: relative; float: right; color: rgb(0, 0, 0); font-size: 2.5vh; text-align: left;">→</div>
+                        </div>
+                    </a>
+                </div>
+                <div style="position: absolute; transform: translate(40%,-50%); right: 50vw; top:52vh; color: rgb(255, 255, 255); font-size: 3.8vw; line-height: 50px; text-align: center; z-index: 1001;">
+                    <div>Knowledge</div>
+                    <div>is</div>
+                    <div>Virtue</div>
+                </div>
+            </section>
+    <!-- ↑↑↑ 原样复制结束 ↑↑↑ -->
+
+    <!-- 原站脚本，零改动 -->
+    <script src="src/pages/page4.js" type="module"></script>
+    <script type="module">
+        // 胶水：原站在滚动到 page4 时调用 window.initializeScene(1300)，此处加载完成后直接调用
+        window.addEventListener('load', () => window.initializeScene(1300));
+    </script>
+</body>
+</html>

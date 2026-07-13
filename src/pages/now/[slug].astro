@@ -1,0 +1,242 @@
+---
+import { getCollection, render } from "astro:content";
+import DetailTopBar from "../../components/DetailTopBar.astro";
+import { site } from "../../data/site";
+import { formatDate, sortByDateDesc } from "../../lib/content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const articles = sortByDateDesc(
+    (await getCollection("now")).filter((e) => e.data.kind === "article"),
+  );
+
+  return articles.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+// 计算当前文章在"最近·文章"中的序号与预估阅读时长（沿用旧实验室文章页的逻辑）
+const articles = sortByDateDesc(
+  (await getCollection("now")).filter((e) => e.data.kind === "article"),
+);
+const currentIndex = articles.findIndex((a) => a.id === entry.id);
+const entryNumber =
+  currentIndex !== -1 ? String(currentIndex + 1).padStart(2, "0") : "00";
+
+const estimateReadTime = (e: any) => {
+  const text = e.body && e.body.length > 0 ? e.body : e.data.summary;
+  const chars = text.replace(/\s+/g, "").length;
+  return Math.max(1, Math.round(chars / 350));
+};
+const readTime = estimateReadTime(entry);
+---
+
+<BaseLayout
+  title={`${entry.data.title ?? "随笔"} · ${site.name}`}
+  description={entry.data.summary}
+>
+  <!-- 阅读进度条 -->
+  <div class="reading-progress-container" aria-hidden="true">
+    <div class="reading-progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- 统一详情顶栏：左上路由路径 / 右上返回 -->
+  <DetailTopBar backHref="/now" backText="返回最近" />
+
+  <section class="lab-article-section">
+    <div class="article-container">
+
+      <!-- 学术期刊式头部 -->
+      <header class="article-header">
+        <div class="header-prefix">
+          <span class="eyebrow eyebrow-no">№{entryNumber}</span>
+          <span class="eyebrow-sep">/</span>
+          <span class="eyebrow-category">ARTICLE</span>
+        </div>
+
+        <h1 class="post-header__title select-all">{entry.data.title}</h1>
+
+        <!-- 一体化学术总览卡片 -->
+        <div class="academic-overview-panel">
+
+          <!-- 摘要 -->
+          {
+            entry.data.summary && (
+              <div class="overview-abstract-section">
+                <div class="overview-abstract-title">[ ABSTRACT ]</div>
+                <p class="post-header__description">{entry.data.summary}</p>
+              </div>
+            )
+          }
+
+          <!-- 元数据统计 -->
+          <div class="overview-stats-section">
+            <div class="overview-stat-item">
+              <span class="overview-stat-label">DATE / 发表日期</span>
+              <span class="overview-stat-value">{formatDate(entry.data.date)}</span>
+            </div>
+            <div class="overview-stat-item">
+              <span class="overview-stat-label">READING TIME / 预计阅读</span>
+              <span class="overview-stat-value">{readTime} MINS</span>
+            </div>
+            <div class="overview-stat-item tags-item">
+              <span class="overview-stat-label">TAGS / 分类主题</span>
+              <div class="overview-stat-value overview-tags-pills">
+                {entry.data.tags.map((tag) => <span class="tag-pill-mini">{tag}</span>)}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </header>
+
+      <!-- 3. 极细分割线 -->
+      <div class="fancy-divider" aria-hidden="true">
+        <span class="divider-line"></span>
+        <span class="divider-cross">+</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <!-- 4. 文章正文 -->
+      <article class="prose-shell post-body article-content">
+        <Content />
+      </article>
+
+      <!-- 5. 尾部 EOF 与署名栏 -->
+      <footer class="article-footer">
+        <div class="eof-sign" aria-hidden="true">
+          <span class="eof-line"></span>
+          <span class="eof-text">END OF FILE</span>
+          <span class="eof-line"></span>
+        </div>
+
+        <div class="lab-signature">
+          <div class="sig-title">{site.name} · 最近</div>
+          <div class="sig-meta">ENGINEERING, INTELLIGENCE AND ARCHITECTURE.</div>
+        </div>
+
+        <!-- 底部返回链接 -->
+        <div class="bottom-navigation">
+          <a class="post-back bottom-back-link" href="/now">
+            <span class="bottom-back-arrow">←</span>
+            <span>BACK TO NOW / 返回最近列表</span>
+          </a>
+        </div>
+      </footer>
+
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  // =================== 阅读进度条与代码块复制（沿用旧实验室文章页 UX） ===================
+  const setupArticleUX = () => {
+    // 1. 阅读进度条
+    const progressBar = document.getElementById("progressBar");
+    const articleSection = document.querySelector(".lab-article-section");
+
+    const updateProgressBar = () => {
+      if (!progressBar || !articleSection) return;
+      const scrollTop = articleSection.scrollTop;
+      const scrollHeight = articleSection.scrollHeight - articleSection.clientHeight;
+      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      progressBar.style.width = `${progress}%`;
+    };
+
+    articleSection?.addEventListener("scroll", updateProgressBar, { passive: true });
+    updateProgressBar();
+
+    // 2. 代码块复制按钮
+    const injectCopyButtons = () => {
+      const preBlocks = document.querySelectorAll(".article-content pre");
+
+      preBlocks.forEach((pre) => {
+        if (pre.querySelector(".code-header-bar")) return;
+
+        let lang = "CODE";
+        const codeEl = pre.querySelector("code");
+        if (codeEl) {
+          const classes = Array.from(codeEl.classList);
+          const langClass = classes.find((c) => c.startsWith("language-"));
+          if (langClass) {
+            lang = langClass.replace("language-", "");
+          }
+        }
+
+        const headerBar = document.createElement("div");
+        headerBar.className = "code-header-bar";
+        headerBar.ariaHidden = "true";
+
+        const langLabel = document.createElement("span");
+        langLabel.className = "code-lang-label";
+        langLabel.textContent = lang;
+
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "code-copy-btn";
+        copyBtn.type = "button";
+        copyBtn.innerHTML = `
+          <svg class="copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span class="copy-text">COPY</span>
+        `;
+
+        headerBar.appendChild(langLabel);
+        headerBar.appendChild(copyBtn);
+        pre.appendChild(headerBar);
+
+        copyBtn.addEventListener("click", async () => {
+          const textToCopy = codeEl ? codeEl.innerText : (pre as HTMLElement).innerText;
+
+          try {
+            await navigator.clipboard.writeText(textToCopy);
+
+            copyBtn.classList.add("copied");
+            const copyText = copyBtn.querySelector(".copy-text");
+            const copyIcon = copyBtn.querySelector(".copy-icon");
+
+            if (copyText) copyText.textContent = "COPIED!";
+            if (copyIcon) {
+              copyIcon.innerHTML = `
+                <polyline points="20 6 9 17 4 12"></polyline>
+              `;
+            }
+
+            setTimeout(() => {
+              copyBtn.classList.remove("copied");
+              if (copyText) copyText.textContent = "COPY";
+              if (copyIcon) {
+                copyIcon.innerHTML = `
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                `;
+              }
+            }, 1800);
+          } catch (err) {
+            console.error("无法复制代码块内容: ", err);
+          }
+        });
+      });
+    };
+
+    injectCopyButtons();
+
+    // 3. 从最近列表进入时，返回键优先走 history.back() 以恢复列表滚动位置
+    const backLinks = document.querySelectorAll(".post-back");
+    backLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        if (document.referrer && document.referrer.includes("/now")) {
+          e.preventDefault();
+          history.back();
+        }
+      });
+    });
+  };
+
+  document.addEventListener("astro:page-load", setupArticleUX);
+</script>

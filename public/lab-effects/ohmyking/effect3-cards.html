@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effect 3 — Works Cards (page7)</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="src/styles/styles.css">
+    <style>
+        /* 抽取页胶水：还原原站 page7 时刻的 body 状态（bodyCSS.white），并恢复可见光标 */
+        body { background-color: rgb(239, 238, 236); cursor: auto; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <!-- ↓↓↓ 以下 section 原样复制自原站 index.html (page7) ↓↓↓ -->
+            <section id="page7" class="page-section active-section">
+                <div class="work-title">Works</div>
+                <div style="z-index: 1000; position: absolute; width: 23vw; height: 0; left: 2vw; bottom: 7vh; border: 1px solid rgb(0, 0, 0);"></div>
+                <a href="https://ohmyking.github.io/blog/" target="_blank">
+                    <div id="page7-bottom-text-button">
+                        <div style="position: relative; float: left; color: rgb(0, 0, 0); font-size: 1.8vh; text-align: left;">to my Blog</div>
+                        <div style="position: relative; float: right; color: rgb(0, 0, 0); font-size: 2.5vh; text-align: left;">→</div>
+                    </div>
+                </a>
+                <div id="canvas-wrapper"></div>
+                <div class="preview-border"></div>
+                <div class="preview-container">
+                    <div class="preview-wrapper">
+                        <div class="preview-content">
+                            <div class="preview-image">
+                                <img src="" alt="">
+                            </div>
+                            <div class="preview-date">Date</div>
+                            <h2 class="preview-title">Card Title</h2>
+                            <h3 class="preview-subtitle">Card Subtitle</h3>
+                            <p class="preview-description">
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+    <!-- ↑↑↑ 原样复制结束 ↑↑↑ -->
+
+    <!-- 原站脚本与加载顺序，零改动 -->
+    <script src="src/modules/three.min.js"></script>
+    <script src="src/modules/tween.umd.js"></script>
+    <script src="src/modules/gsap.min.js"></script>
+    <script src="src/pages/page7.js"></script>
+    <script>
+        // 胶水：原站在滚动到 page7 时调用 Page7Module.init('canvas-wrapper')
+        window.addEventListener('load', () => Page7Module.init('canvas-wrapper'));
+    </script>
+</body>
+</html>
