@@ -143,6 +143,10 @@ const { posts } = Astro.props;
     };
 
     const start = () => {
+      // 自愈：若在异步初始化期间错过 page-scroll-end，用实时的 is-scrolling 状态纠正挂起标记
+      if (scrollSuspended && !document.body.classList.contains("is-scrolling")) {
+        scrollSuspended = false;
+      }
       if (
         running ||
         !inViewport ||

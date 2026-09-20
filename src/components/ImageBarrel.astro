@@ -155,7 +155,7 @@ const galleryItems: BarrelGalleryItem[] = items.length
     camera.position.set(0, 0, 24);
 
     const getPixelRatio = () =>
-      Math.min(window.devicePixelRatio || 1, window.matchMedia("(max-width: 700px)").matches ? 1.5 : 2);
+      Math.min(window.devicePixelRatio || 1, 1.5);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -445,7 +445,7 @@ const galleryItems: BarrelGalleryItem[] = items.length
               return;
             }
 
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
             texture.generateMipmaps = true;
             texture.minFilter = THREE.LinearMipmapLinearFilter;
             texture.magFilter = THREE.LinearFilter;
@@ -700,7 +700,7 @@ const galleryItems: BarrelGalleryItem[] = items.length
             texture.dispose();
             return;
           }
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
           texture.generateMipmaps = true;
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
@@ -1152,6 +1152,11 @@ const galleryItems: BarrelGalleryItem[] = items.length
     };
 
     function startAnimation() {
+      // 自愈：异步 import('three') 期间可能错过 page-scroll-end 事件，使 isScrollSuspended 永久为真。
+      // 启动前用实时的 is-scrolling 类状态纠正，避免图片桶加载完成后停留在空白挂起态。
+      if (isScrollSuspended && !document.body.classList.contains("is-scrolling")) {
+        isScrollSuspended = false;
+      }
       if (isRunning || disposed || isScrollSuspended || document.visibilityState === "hidden") return;
       lastFrameTime = performance.now();
       isRunning = true;

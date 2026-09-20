@@ -32,6 +32,30 @@ const rowTwo = capabilities.rowTwo;
   </div>
 </section>
 
+<script>
+  const setupMarquee = () => {
+    if (!("IntersectionObserver" in window)) return;
+    const marquees = document.querySelectorAll<HTMLElement>(".home-marquee");
+    if (!marquees.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          (entry.target as HTMLElement).classList.toggle("is-paused", !entry.isIntersecting);
+        });
+      },
+      { rootMargin: "120px 0px" },
+    );
+    marquees.forEach((marquee) => {
+      if (marquee.dataset.marqueeBound === "1") return;
+      marquee.dataset.marqueeBound = "1";
+      observer.observe(marquee);
+    });
+  };
+
+  document.addEventListener("astro:page-load", setupMarquee);
+  setupMarquee();
+</script>
+
 <style>
   .home-marquee {
     --marquee-mask: linear-gradient(to right, transparent, black 14%, black 86%, transparent);
@@ -92,6 +116,17 @@ const rowTwo = capabilities.rowTwo;
 
   .home-marquee__lane:hover .home-marquee__track {
     animation-play-state: paused;
+  }
+
+  /* 滚出视口时暂停跑马灯动画，避免后台持续占用合成器 */
+  .home-marquee.is-paused .home-marquee__track {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-marquee__track {
+      animation: none;
+    }
   }
 
   .home-marquee__item {
