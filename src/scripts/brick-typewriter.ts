@@ -1146,6 +1146,7 @@ function resetView(): void {
   rotateButton?.setAttribute("aria-pressed", "false");
   camera.position.copy(cameraHome);
   controls.target.set(0, 1.55, 0);
+  if (isPhoneEmbedded()) resize();
   controls.update();
   setStatus("READY");
 }
@@ -1257,14 +1258,58 @@ function handleAction(event: Event): void {
   if (action === "download") void downloadGlb();
 }
 
+function isPhoneEmbedded(): boolean {
+  try {
+    return window.parent !== window && window.parent.matchMedia("(max-width: 768px)").matches;
+  } catch {
+    return false;
+  }
+}
+
+function fitPhoneEmbeddedModel(aspect: number): void {
+  model.scale.setScalar(1);
+  model.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(model);
+  const center = bounds.getCenter(new THREE.Vector3());
+  const direction = new THREE.Vector3(10.6, 7.2, 12.4).normalize();
+  camera.fov = 36;
+  camera.position.copy(center).add(direction);
+  camera.lookAt(center);
+  const inverseRotation = camera.quaternion.clone().invert();
+  const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
+  let distance = 7.5;
+  // Frame the actual model bounds instead of shrinking the whole model on tall screens.
+  for (const x of [bounds.min.x, bounds.max.x]) {
+    for (const y of [bounds.min.y, bounds.max.y]) {
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        const corner = new THREE.Vector3(x, y, z).sub(center).applyQuaternion(inverseRotation);
+        distance = Math.max(distance, corner.z + Math.abs(corner.x) / (tangent * aspect * 0.91), corner.z + Math.abs(corner.y) / (tangent * 0.7));
+      }
+    }
+  }
+  controls.target.copy(center);
+  controls.maxDistance = Math.max(30, distance * 1.6);
+  camera.position.copy(center).addScaledVector(direction, distance);
+  if (scene.fog instanceof THREE.Fog) {
+    scene.fog.near = distance + 6;
+    scene.fog.far = distance + 28;
+  }
+}
+
 function resize(): void {
   const width = appElement.clientWidth;
   const height = appElement.clientHeight;
   const aspect = width / Math.max(height, 1);
   renderer.setSize(width, height, false);
   camera.aspect = aspect;
+  if (!isPhoneEmbedded() && scene.fog instanceof THREE.Fog) {
+    scene.fog.near = 18;
+    scene.fog.far = 34;
+  }
 
-  if (aspect < 0.85) {
+  if (isPhoneEmbedded()) {
+    fitPhoneEmbeddedModel(aspect);
+  } else if (aspect < 0.85) {
     camera.fov = 40;
     controls.maxDistance = 30;
     camera.position.set(7, 9, 19);

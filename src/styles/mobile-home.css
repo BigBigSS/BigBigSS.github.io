@@ -49,13 +49,15 @@
   body .nav-inner.nav-inner .theme-toggle:hover { transform: none; }
 
   body .hero {
-    height: 100svh;
+    /* Keep the full composition stable while mobile browser bars expand. */
+    height: 100vh;
+    height: 100lvh;
     min-height: 0;
     max-height: none;
   }
   body .hero .hero__shell { padding:0; }
   body .hero .hero__content {
-    position:absolute; inset:30.3% max(24px, 7vw) 14%; display:flex; flex-direction:column;
+    position:absolute; inset:30.3% max(24px, 7vw) max(54px, calc(env(safe-area-inset-bottom) + 28px)); display:flex; flex-direction:column;
     width:auto; max-width:none; margin:0;
   }
   body .hero .hero__tag { display:none; }
@@ -82,14 +84,9 @@
   body .nav-inner.nav-inner .brand__text { font-size:19px; }
   body .nav-inner.nav-inner .brand__text::after { content:""; display:inline-block; width:3px; height:3px; margin:0 0 10px 2px; border-radius:50%; background:#bd83df; }
   body .nav-inner.nav-inner { --nav-pill-bg:rgb(255 255 255 / 5%); --nav-pill-border:rgb(255 255 255 / 3%); }
-  body .hero .hero-mobile-colophon {
-    position:absolute; bottom:max(38px,env(safe-area-inset-bottom)); left:max(24px,7vw); right:max(24px,7vw);
-    display:flex; align-items:flex-end; justify-content:space-between; z-index:60;
-    font:7px/1.7 "JetBrains Mono",monospace; letter-spacing:.2em; color:#777d87;
-  }
   body .hero::after { display:none; }
   body .hero .scene-container { display:none; }
-  body .hero .noise-overlay { opacity:.025; }
+  body .hero .noise-overlay { display:none; }
   /* Keep the native photo viewer outside any transformed reveal layer. */
   body .reveal-wrap:has(> .barrel3d) {
     opacity:1;
@@ -98,7 +95,7 @@
   }
   @media (max-height:600px) {
     body .hero .hero__content { top:25%; bottom:10%; }
-    body .hero .hero-mobile-eyebrow, body .hero .hero-mobile-colophon { display:none; }
+    body .hero .hero-mobile-eyebrow { display:none; }
     body .hero .hero__title { font-size:28px; margin-bottom:12px; }
   }
 }

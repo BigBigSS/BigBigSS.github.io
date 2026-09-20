@@ -16,6 +16,8 @@ const { backHref, backText = "RETURN" } = Astro.props;
 <div class="detail-topbar" data-detail-topbar>
   <a class="detail-topbar__back" href={backHref} data-detail-back>
     <span class="detail-topbar__back-text">{backText} / ESC</span>
+    <span class="detail-topbar__mobile-icon" aria-hidden="true">←</span>
+    <span class="detail-topbar__mobile-text">{backText}</span>
     <span class="detail-topbar__back-icon" aria-hidden="true">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="18" y1="6" x2="6" y2="18" />
@@ -100,6 +102,11 @@ const { backHref, backText = "RETURN" } = Astro.props;
       border-color 0.3s var(--ease-cinema);
   }
 
+  .detail-topbar__mobile-icon,
+  .detail-topbar__mobile-text {
+    display: none;
+  }
+
   .detail-topbar__back:hover {
     color: var(--text-primary);
     border-color: color-mix(in srgb, var(--text-primary) 45%, transparent);
@@ -125,6 +132,44 @@ const { backHref, backText = "RETURN" } = Astro.props;
 
     .detail-topbar__back {
       padding: 0 10px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .detail-topbar {
+      top: calc(max(22px, env(safe-area-inset-top)) + 60px);
+      left: 20px;
+      right: 20px;
+      height: 44px;
+      padding: 0;
+      justify-content: flex-start;
+    }
+
+    .detail-topbar__back {
+      height: 44px;
+      min-width: 44px;
+      gap: 8px;
+      padding: 0 12px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--bg) 94%, transparent);
+      font-family: inherit;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .detail-topbar__back-icon {
+      display: none;
+    }
+
+    .detail-topbar__mobile-icon,
+    .detail-topbar__mobile-text {
+      display: inline;
+    }
+
+    .detail-topbar__mobile-icon {
+      font-size: 20px;
+      line-height: 1;
     }
   }
 </style>

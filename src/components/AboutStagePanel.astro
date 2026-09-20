@@ -893,7 +893,9 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
 
     .about-stage__card {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       align-items: stretch;
+      justify-content: stretch;
       min-height: 260px;
       overflow: hidden;
       border: 1px solid rgba(186, 198, 216, 0.1);
@@ -927,6 +929,8 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
       grid-area: 1 / 1;
       flex-direction: column;
       align-items: stretch;
+      justify-content: center;
+      min-width: 0;
       box-sizing: border-box;
       padding: 30px 24px;
       opacity: 1;
@@ -948,17 +952,22 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     .about-stage__trigger,
     .about-stage__trigger:global(.is-stacked) {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       width: 100%;
+      min-width: 0;
       gap: 0.22em;
-      justify-content: start;
+      place-content: center;
+      justify-items: center;
       font-size: var(--poem-font-size, 30px);
       font-weight: 600;
       line-height: 1.35;
       letter-spacing: 0.015em;
-      text-align: left;
+      text-align: center;
     }
 
     .about-stage__trigger :global([data-poetry-line]) {
+      width: 100%;
+      min-width: 0;
       white-space: normal;
       overflow-wrap: anywhere;
       cursor: pointer;

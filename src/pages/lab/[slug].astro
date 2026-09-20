@@ -182,12 +182,50 @@ const nextLab =
 
 <script>
   // 工具栏：全屏 + 重置演示
+  let cleanupWorkbench: (() => void) | undefined;
   const setupWorkbench = () => {
+    cleanupWorkbench?.();
+    const controller = new AbortController();
+    const cleanups: Array<() => void> = [];
+    const phone = matchMedia("(max-width: 768px)");
     document
       .querySelectorAll<HTMLElement>("[data-demo-stage]")
       .forEach((root) => {
         const wrap = root.querySelector<HTMLElement>(".stage__frame-wrap");
         const frame = root.querySelector<HTMLIFrameElement>(".stage__frame");
+        const plate = root.querySelector<HTMLElement>(".nameplate");
+        const rail = root.querySelector<HTMLElement>(".rail");
+
+        const sizeDemo = () => {
+          if (!phone.matches) {
+            root.style.removeProperty("--mobile-demo-height");
+            return;
+          }
+          const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+          const benchTop = root.getBoundingClientRect().top + window.scrollY;
+          const headingHeight = (plate?.offsetHeight ?? 0) + (rail?.offsetHeight ?? 0);
+          const height = Math.round(Math.max(280, Math.min(640, root.clientWidth * 1.38, viewportHeight - benchTop - headingHeight - 16)));
+          const value = `${height}px`;
+          if (root.style.getPropertyValue("--mobile-demo-height") !== value) {
+            root.style.setProperty("--mobile-demo-height", value);
+          }
+        };
+        const syncEmbeddedMode = () => {
+          // Our same-origin demos can omit a repeated title while embedded on phones.
+          try {
+            frame?.contentDocument?.documentElement.classList.toggle("lab-mobile-embed", phone.matches);
+          } catch { /* External experiments keep their own layout. */ }
+          sizeDemo();
+        };
+        const observer = new ResizeObserver(sizeDemo);
+        if (plate) observer.observe(plate);
+        if (rail) observer.observe(rail);
+        cleanups.push(() => observer.disconnect());
+        frame?.addEventListener("load", syncEmbeddedMode, { signal: controller.signal });
+        phone.addEventListener("change", syncEmbeddedMode, { signal: controller.signal });
+        window.addEventListener("resize", sizeDemo, { passive: true, signal: controller.signal });
+        window.visualViewport?.addEventListener("resize", sizeDemo, { passive: true, signal: controller.signal });
+        syncEmbeddedMode();
 
         root
           .querySelector<HTMLButtonElement>("[data-demo-fullscreen]")
@@ -197,18 +235,23 @@ const nextLab =
             } else {
               wrap?.requestFullscreen?.();
             }
-          });
+          }, { signal: controller.signal });
 
         root
           .querySelector<HTMLButtonElement>("[data-demo-reload]")
           ?.addEventListener("click", () => {
             if (frame) frame.src = frame.src;
-          });
+          }, { signal: controller.signal });
       });
+    cleanupWorkbench = () => {
+      controller.abort();
+      cleanups.forEach((cleanup) => cleanup());
+    };
   };
 
   setupWorkbench();
   document.addEventListener("astro:page-load", setupWorkbench);
+  document.addEventListener("astro:before-swap", () => cleanupWorkbench?.());
 </script>
 
 <style is:global>
@@ -694,5 +737,66 @@ const nextLab =
       width: 100%;
       margin-left: 0;
     }
+  }
+
+  @media (max-width: 768px) {
+    .workbench {
+      --bench-top: calc(max(22px, env(safe-area-inset-top)) + 112px);
+      grid-template-areas: "plate" "rail" "stage" "notes";
+      grid-template-rows: auto auto var(--mobile-demo-height, clamp(280px, calc(100dvh - var(--bench-top) - 132px), 640px)) auto;
+      width: calc(100% - 40px);
+      margin-top: var(--bench-top);
+      margin-bottom: 28px;
+      border-radius: 16px;
+    }
+
+    .nameplate {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 8px;
+      padding: 12px 14px;
+    }
+
+    .nameplate__title {
+      grid-column: 1;
+      grid-row: 1;
+      font-size: clamp(16px, 4.3vw, 19px);
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .nameplate__id {
+      grid-column: 2;
+      grid-row: 1;
+      gap: 3px;
+      padding-top: 4px;
+      font-size: 9px;
+      letter-spacing: 0;
+    }
+
+    .nameplate__hint { display: none; }
+
+    .rail {
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 6px 8px;
+    }
+
+    .rail__group { gap: 4px; }
+    .rail__btn { width: 44px; height: 44px; border-radius: 11px; font-size: 18px; }
+    .rail__group--nav { margin-left: auto; }
+
+    .stage__frame-wrap { overflow: hidden; }
+    .stage__frame-wrap:fullscreen { width: 100vw; height: 100dvh; }
+
+    .notes__scroll { padding: 20px 16px 28px; }
+    .notes__label { font-size: 10px; letter-spacing: 0.12em; padding-bottom: 12px; border-bottom-width: 1px; }
+    .notes__desc { margin-top: 14px; font-size: 14px; line-height: 1.8; }
+    .notes__meta { margin-top: 18px; }
+    .notes__meta-row { grid-template-columns: 48px minmax(0, 1fr); gap: 10px; padding-block: 10px; }
+    .notes__meta-row dd { font-size: 12px; overflow-wrap: anywhere; }
+    .notes__tag { font-size: 9px; padding-inline: 6px; }
   }
 </style>

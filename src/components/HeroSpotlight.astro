@@ -71,7 +71,6 @@ import { site } from "../data/site";
       </div>
     </div>
   </div>
-  <div class="hero-mobile-colophon" aria-hidden="true"><span>CODE<br />MEETS<br />A BRIGHTER YOU</span><span>— / 2024</span></div>
 </section>
 
 <script>
@@ -87,6 +86,7 @@ import { site } from "../data/site";
     const hero = heroRoot;
     const scene = mouseScene;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const desktop = window.matchMedia("(min-width: 769px)");
 
     let targetX = window.innerWidth / 2;
     let targetY = window.innerHeight / 2;
@@ -108,7 +108,7 @@ import { site } from "../data/site";
     let inViewport = false;
 
     const triggerSweep = () => {
-      if (isWaving || reducedMotion) return;
+      if (isWaving || reducedMotion || !desktop.matches) return;
       isWaving = true;
       waveProgress = -20;
       waveOpacity = 0;
@@ -116,13 +116,13 @@ import { site } from "../data/site";
     };
 
     const scheduleFirstSweep = () => {
-      if (firstSweepScheduled || reducedMotion) return;
+      if (firstSweepScheduled || reducedMotion || !desktop.matches) return;
       firstSweepScheduled = true;
       firstSweepTimer = window.setTimeout(triggerSweep, 1500);
     };
 
     const startSweepTimer = () => {
-      if (sweepTimer || reducedMotion) return;
+      if (sweepTimer || reducedMotion || !desktop.matches) return;
       sweepTimer = window.setInterval(triggerSweep, 10000);
     };
 
@@ -134,6 +134,7 @@ import { site } from "../data/site";
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (!desktop.matches) return;
       targetX = e.clientX;
       targetY = e.clientY;
       targetOpacity = 1;
@@ -194,7 +195,7 @@ import { site } from "../data/site";
     }
 
     function startAnimation() {
-      if (isRunning || !inViewport || document.visibilityState === "hidden") return;
+      if (isRunning || !desktop.matches || !inViewport || document.visibilityState === "hidden") return;
       isRunning = true;
       animationId = requestAnimationFrame(animate);
     }
@@ -231,6 +232,14 @@ import { site } from "../data/site";
       startAnimation();
     }
 
+    desktop.addEventListener("change", () => {
+      if (!desktop.matches) {
+        stopAnimation(); stopSweepTimer(); window.clearTimeout(firstSweepTimer);
+        isWaving = false; firstSweepScheduled = false;
+      } else if (inViewport) {
+        startSweepTimer(); scheduleFirstSweep(); startAnimation();
+      }
+    }, { signal: events.signal });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         stopAnimation();
@@ -254,7 +263,7 @@ import { site } from "../data/site";
 </script>
 
 <style is:global>
-  .hero-mobile-icon, .hero-mobile-eyebrow, .hero-mobile-colophon { display: none; }
+  .hero-mobile-icon, .hero-mobile-eyebrow { display: none; }
   .hero {
     position: relative;
     width: 100%;

@@ -240,3 +240,44 @@ const readTime = estimateReadTime(entry);
 
   document.addEventListener("astro:page-load", setupArticleUX);
 </script>
+
+<style>
+  @media (max-width: 768px) {
+    :global(body:has(.lab-article-section) > .footer) {
+      display: none;
+    }
+
+    .lab-article-section {
+      top: calc(max(22px, env(safe-area-inset-top)) + 112px);
+      height: calc(100dvh - max(22px, env(safe-area-inset-top)) - 112px);
+      padding: 16px 0 max(36px, env(safe-area-inset-bottom));
+      scroll-padding-top: 16px;
+    }
+
+    .article-container { width: calc(100% - 40px); }
+    .article-header { gap: 12px; }
+    .header-prefix { gap: 6px; font-size: 10px; }
+    .post-header__title { font-size: clamp(26px, 7vw, 32px); line-height: 1.22; letter-spacing: -0.025em; }
+
+    .academic-overview-panel {
+      margin-top: 6px;
+      padding: 16px 14px;
+      border-style: solid;
+      border-radius: 12px;
+    }
+
+    .overview-abstract-section { margin-bottom: 16px; }
+    .overview-abstract-title { font-size: 10px; letter-spacing: 0.12em; margin-bottom: 8px; }
+    .post-header__description { font-size: 14px; line-height: 1.8; text-align: left; overflow-wrap: anywhere; }
+    .overview-stats-section { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding-top: 14px; }
+    .overview-stat-item:not(:last-child) { border: 0; padding: 0; }
+    .overview-stat-item { gap: 6px; min-width: 0; }
+    .overview-stat-label { font-size: 9px; letter-spacing: 0; }
+    .overview-stat-value { font-size: 12px; }
+    .tags-item { grid-column: 1 / -1; }
+    .tag-pill-mini { font-size: 9px; padding: 3px 6px; }
+    .fancy-divider { margin-block: 24px; gap: 12px; }
+    .article-footer { margin-top: 40px; }
+    .bottom-back-link { min-height: 44px; font-size: 10px; letter-spacing: 0.04em; }
+  }
+</style>

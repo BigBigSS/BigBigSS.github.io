@@ -7,7 +7,8 @@ type Photo = {
 };
 type Slot = {
   button: HTMLButtonElement; image: HTMLImageElement;
-  live: HTMLElement; sequence: number; photo: number; promoted: boolean;
+  live: HTMLElement; sequence: number; photo: number; ready: boolean; readyAt: number;
+  revision: number; decoding: number;
 };
 
 function initPhotoOrbits() {
@@ -28,7 +29,8 @@ function initPhotoOrbits() {
     const status = find<HTMLElement>("[data-photo-status]");
     const slots: Slot[] = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-photo-open]")).map((button) => ({
       button, image: button.querySelector("[data-photo-image]")!,
-      live: button.querySelector("[data-photo-live]")!, sequence: NaN, photo: -1, promoted: false,
+      live: button.querySelector("[data-photo-live]")!, sequence: NaN, photo: -1, ready: false, readyAt: 0,
+      revision: 0, decoding: -1,
     }));
     let photos: Photo[] = [];
     const rounds = new Map<number, number[]>();
@@ -44,11 +46,13 @@ function initPhotoOrbits() {
     let current = -1;
     let raf = 0;
     let previousTime = 0;
-    let resumeAt = 0;
+    let momentum = 0;
     let suppressClickUntil = 0;
     let frameWidth = 402;
     let cardWidth = 156;
-    let gesture: { id: number; x: number; y: number; rotation: number; lastX: number; time: number; speed: number; dragging: boolean } | null = null;
+    let cardHeight = 265;
+    type Gesture = { id: number; input: 'touch' | 'pointer'; x: number; y: number; rotation: number; lastX: number; time: number; started: number; speed: number; dragging: boolean; slot?: Slot };
+    let gesture: Gesture | null = null;
     const mod = (n: number, size: number) => ((n % size) + size) % size;
     const text = (selector: string, value: string) => { find(selector).textContent = value; };
     const shuffle = (list: number[]) => {
@@ -87,7 +91,7 @@ function initPhotoOrbits() {
         };
         const cancel = () => { probe.src = ""; finish(false); };
         cancelLoads.add(cancel);
-        probe.onload = () => finish(true);
+        probe.onload = () => { void probe.decode().catch(() => {}).then(() => finish(!disposed)); };
         probe.onerror = () => finish(false);
         timeout = window.setTimeout(cancel, 12000);
         probe.src = src;
@@ -95,27 +99,37 @@ function initPhotoOrbits() {
       loaded.set(src, promise);
       return promise;
     };
+    const decodeSlot = (slot: Slot) => {
+      // A cached image can be complete before its load event arrives. Decode
+      // once per assignment so that later load events cannot restart its fade.
+      if (slot.ready || slot.decoding === slot.revision) return;
+      const revision = slot.revision;
+      const src = slot.image.getAttribute("src");
+      slot.decoding = revision;
+      void slot.image.decode().catch(() => {}).then(() => {
+        if (disposed || revision !== slot.revision || src !== slot.image.getAttribute("src")) return;
+        slot.decoding = -1;
+        if (!slot.image.complete || !slot.image.naturalWidth || slot.ready) return;
+        slot.ready = true;
+        slot.readyAt = performance.now();
+        if (slot.sequence === currentSequence) loading.hidden = true;
+        paint(); schedule();
+      });
+    };
     const assign = (slot: Slot, sequence: number) => {
-      slot.sequence = sequence; slot.photo = photoAt(sequence); slot.promoted = false;
+      slot.sequence = sequence; slot.photo = photoAt(sequence); slot.ready = false;
+      slot.revision++;
+      slot.button.style.opacity = '0';
       const item = photos[slot.photo];
       const src = item.thumbSrc || item.src || item.fullSrc || "";
       slot.image.src = src;
+      if (slot.image.complete && slot.image.naturalWidth > 0) decodeSlot(slot);
       slot.image.alt = item.description || item.alt || item.title || "生活照片";
+      slot.button.setAttribute("aria-label", `放大照片：${slot.image.alt}`);
       slot.live.hidden = !item.liveVideoSrc;
       slot.button.dataset.sequence = String(sequence);
       slot.button.dataset.photoIndex = String(slot.photo);
       slot.button.hidden = false;
-    };
-    const promote = (slot: Slot) => {
-      if (slot.promoted) return;
-      slot.promoted = true;
-      const sequence = slot.sequence;
-      const item = photos[slot.photo];
-      const src = item.src || item.fullSrc;
-      if (src && src !== slot.image.getAttribute("src")) void load(src).then((ok) => {
-        if (!ok || disposed || !phone.matches || slot.sequence !== sequence) return;
-        slot.image.src = src;
-      });
     };
     const updateCurrent = (sequence: number) => {
       if (sequence === currentSequence) return;
@@ -145,26 +159,39 @@ function initPhotoOrbits() {
         const x = Math.sin(angle) * radius;
         const z = (Math.cos(angle) - 1) * radius;
         const y = (1 - Math.cos(angle)) * 9;
-        const tilt = angle * 180 / Math.PI;
-        const opacity = Math.max(0, Math.min(1, (2.15 - abs) / .45));
+        const readyOpacity = slot.ready ? (reduced.matches ? 1 : Math.min(1, (performance.now() - slot.readyAt) / 160)) : 0;
+        const opacity = Math.max(0, Math.min(1, (2.15 - abs) / .45)) * readyOpacity;
         const focus = Math.max(0, 1 - abs);
-        slot.button.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px) rotateY(${tilt.toFixed(2)}deg)`;
+        // Keep the entire card in one flat compositor plane. Even independent
+        // perspective/rotateY layers can lose their clipped texture in iOS
+        // WebKit. An affine projection retains depth and the tangent-facing
+        // silhouette without any 3D surface sorting or backface changes.
+        const scale = 800 / (800 - z);
+        const a = Math.max(.12, Math.cos(angle)) * scale;
+        const b = Math.sin(angle) * .07 * scale;
+        const tx = x * scale - a * cardWidth / 2;
+        const ty = y * scale - (b * cardWidth + scale * cardHeight) / 2;
+        slot.button.style.transform = `matrix(${a.toFixed(5)},${b.toFixed(5)},0,${scale.toFixed(5)},${tx.toFixed(3)},${ty.toFixed(3)})`;
+        const order = String(10 - Math.abs(sequence - center));
+        if (slot.button.style.zIndex !== order) slot.button.style.zIndex = order;
         slot.button.style.opacity = String(opacity);
-        slot.button.style.setProperty("--focus", focus.toFixed(3));
-        slot.button.style.setProperty("--shade", Math.min(.5, abs * .15).toFixed(3));
-        slot.button.style.pointerEvents = abs < 1.85 ? "auto" : "none";
-        slot.button.tabIndex = sequence === center ? 0 : -1;
-        slot.button.setAttribute("aria-hidden", String(abs >= 1.85));
-        slot.button.setAttribute("aria-label", `放大照片：${slot.image.alt}`);
-        if (abs < 1.3) promote(slot);
+        slot.button.style.setProperty("--focus", focus.toFixed(2));
+        slot.button.style.setProperty("--shade", Math.min(.5, abs * .15).toFixed(2));
+        const interactive = abs < 1.85 && slot.ready;
+        if (slot.button.style.pointerEvents !== (interactive ? "auto" : "none")) {
+          slot.button.style.pointerEvents = interactive ? "auto" : "none";
+          slot.button.setAttribute("aria-hidden", String(!interactive));
+        }
+        const tabIndex = sequence === center ? 0 : -1;
+        if (slot.button.tabIndex !== tabIndex) slot.button.tabIndex = tabIndex;
       }
-      distance.style.transform = `translateX(${(-Math.sin(rotation * .18) * 9).toFixed(2)}px)`;
+      distance.style.transform = `translate3d(${(-Math.sin(rotation * .18) * 9).toFixed(2)}px,0,0)`;
       root.dataset.rotation = rotation.toFixed(3);
       updateCurrent(center);
       const active = slots[mod(center, slots.length)];
       loading.hidden = active.image.complete && active.image.naturalWidth > 0;
     };
-    const canRun = () => !disposed && visible && phone.matches && !document.hidden && !viewer.open && photos.length > 0;
+    const canRun = () => !disposed && visible && phone.matches && !document.hidden && photos.length > 0;
     const tick = (now: number) => {
       raf = 0;
       if (!canRun()) { previousTime = 0; return; }
@@ -174,10 +201,14 @@ function initPhotoOrbits() {
         if (target !== null) {
           rotation += (target - rotation) * Math.min(1, dt * 8);
           if (Math.abs(target - rotation) < .002) { rotation = target; target = null; }
-        } else if (auto && now >= resumeAt && photos.length > 1) rotation += dt * .17;
+        } else {
+          rotation += dt * ((auto && photos.length > 1 ? .17 : 0) + momentum);
+          momentum *= Math.exp(-dt * 5);
+          if (Math.abs(momentum) < .005) momentum = 0;
+        }
       }
       paint();
-      if (auto || target !== null || gesture) raf = requestAnimationFrame(tick);
+      if (auto || target !== null || gesture || momentum) raf = requestAnimationFrame(tick);
       else previousTime = 0;
     };
     const schedule = () => {
@@ -186,7 +217,7 @@ function initPhotoOrbits() {
     };
     const turnTo = (sequence: number) => {
       if (photos.length < 2 || viewer.open) return;
-      resumeAt = performance.now() + 3500;
+      momentum = 0;
       if (reduced.matches) { rotation = sequence; target = null; paint(); }
       else target = sequence;
       status.textContent = "已旋转照片，可点击中央照片查看大图。";
@@ -209,14 +240,18 @@ function initPhotoOrbits() {
         });
         frameWidth = frame.clientWidth || 402;
         cardWidth = slots[0].button.clientWidth || Math.max(150, Math.min(214, frameWidth * .39));
-        resumeAt = performance.now() + 1200;
+        cardHeight = slots[0].button.clientHeight || Math.max(246, Math.min(346, frameWidth * .66));
         paint();
+        // The first paint reveals the recycled buttons; use their real CSS
+        // dimensions before any decoded photo is displayed.
+        cardWidth = slots[0].button.clientWidth || cardWidth;
+        cardHeight = slots[0].button.clientHeight || cardHeight;
       }
       schedule();
     };
     const photoViewer = initPhotoViewer(root, {
       signal: events.signal, reduced, load,
-      onClose: () => { resumeAt = performance.now() + 1400; schedule(); },
+      onClose: schedule,
     });
     const openViewer = (slot: Slot) => {
       if (performance.now() < suppressClickUntil || viewer.open) return;
@@ -226,16 +261,21 @@ function initPhotoOrbits() {
       schedule();
     };
     slots.forEach((slot) => {
+      slot.button.style.transformOrigin = "0 0";
       slot.button.addEventListener("click", () => {
         if (performance.now() < suppressClickUntil || slot.photo < 0) return;
         openViewer(slot);
       }, options);
-      slot.image.addEventListener("load", () => { if (slot.sequence === currentSequence) loading.hidden = true; }, options);
+      slot.image.addEventListener("load", () => {
+        decodeSlot(slot);
+      }, options);
       slot.image.addEventListener("error", () => {
         if (slot.photo < 0) return;
         const item = photos[slot.photo];
         const fallback = [item.src, item.fullSrc].find((src) => src && src !== slot.image.getAttribute("src"));
         if (fallback && slot.image.dataset.fallback !== String(slot.sequence)) {
+          slot.revision++;
+          slot.ready = false;
           slot.image.dataset.fallback = String(slot.sequence); slot.image.src = fallback;
         } else if (slot.sequence === currentSequence) {
           loading.textContent = "这张照片暂时无法加载，可继续旋转"; retry.hidden = false;
@@ -247,58 +287,108 @@ function initPhotoOrbits() {
       const slot = slots[mod(Math.round(rotation), slots.length)];
       slot.image.removeAttribute("data-fallback"); assign(slot, slot.sequence); paint();
     }, options);
-    frame.addEventListener("pointerdown", (event) => {
-      if (!phone.matches || !photos.length || !event.isPrimary || event.button !== 0) return;
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rotation, lastX: event.clientX, time: performance.now(), speed: 0, dragging: false };
-      target = null; schedule();
-    }, options);
-    frame.addEventListener("pointermove", (event) => {
-      if (!gesture || event.pointerId !== gesture.id) return;
-      const dx = event.clientX - gesture.x;
-      const dy = event.clientY - gesture.y;
-      if (!gesture.dragging) {
-        if (Math.abs(dy) > 9 && Math.abs(dy) > Math.abs(dx)) { gesture = null; schedule(); return; }
-        if (Math.abs(dx) < 7 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
-        gesture.dragging = true;
-        frame.setPointerCapture(event.pointerId);
-        frame.classList.add("is-dragging");
+    const pickSlot = (x: number, y: number, eventTarget: EventTarget | null) => {
+      const button = eventTarget instanceof Element ? eventTarget.closest('[data-photo-open]') : null;
+      // Preserve the hit-test fallback for composited/rotating card surfaces.
+      return slots.find((slot) => slot.button === button) || slots
+        .filter((slot) => {
+          if (slot.photo < 0 || slot.button.style.pointerEvents === 'none') return false;
+          const rect = slot.button.getBoundingClientRect();
+          return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        })
+        .sort((a, b) => Math.abs(a.sequence - rotation) - Math.abs(b.sequence - rotation))[0];
+    };
+    const begin = (id: number, input: Gesture['input'], x: number, y: number, eventTarget: EventTarget | null) => {
+      if (!phone.matches || !photos.length || viewer.open) return;
+      const now = performance.now();
+      gesture = { id, input, x, y, rotation, lastX: x, time: now, started: now, speed: 0, dragging: false, slot: pickSlot(x, y, eventTarget) };
+      suppressClickUntil = 0;
+      target = null; momentum = 0; schedule();
+    };
+    const release = (point?: { x: number; y: number }, cancelled = false) => {
+      if (!gesture) return;
+      const ended = gesture; gesture = null;
+      frame.classList.remove('is-dragging');
+      if (ended.input === 'pointer' && frame.hasPointerCapture(ended.id)) frame.releasePointerCapture(ended.id);
+      if (ended.dragging) {
+        suppressClickUntil = performance.now() + 300;
+        momentum = cancelled || reduced.matches || performance.now() - ended.time > 100 ? 0 : Math.max(-5, Math.min(5, ended.speed));
+      } else if (!cancelled && point && ended.slot && performance.now() - ended.started < 600 && Math.hypot(point.x - ended.x, point.y - ended.y) < 12) {
+        openViewer(ended.slot);
+        suppressClickUntil = performance.now() + 300;
       }
+      schedule();
+    };
+    const move = (x: number, y: number, event: Event) => {
+      if (!gesture) return;
+      const dx = x - gesture.x;
+      const dy = y - gesture.y;
+      if (!gesture.dragging) {
+        if (Math.abs(dy) > 6 && Math.abs(dy) > Math.abs(dx)) { release(undefined, true); return; }
+        if (Math.abs(dx) < 6 || Math.abs(dx) <= Math.abs(dy)) return;
+        gesture.dragging = true;
+        frame.classList.add('is-dragging');
+      }
+      // Touch owns its entire lifecycle, even when Safari cancels the parallel
+      // pointer stream. Never capture a pointer from inside a touch listener.
+      if (event.cancelable) event.preventDefault();
       const now = performance.now();
       const elapsed = Math.max(8, now - gesture.time);
       const scale = frameWidth * .42;
-      const velocity = -(event.clientX - gesture.lastX) / scale / elapsed * 1000;
+      const velocity = -(x - gesture.lastX) / scale / elapsed * 1000;
       gesture.speed = gesture.speed * .6 + velocity * .4;
-      gesture.lastX = event.clientX; gesture.time = now;
+      gesture.lastX = x; gesture.time = now;
       rotation = gesture.rotation - dx / scale;
-      suppressClickUntil = now + 500;
-      paint();
-    }, options);
-    const release = (event?: PointerEvent) => {
-      if (!gesture || (event && event.pointerId !== gesture.id)) return;
-      const ended = gesture; gesture = null;
-      frame.classList.remove("is-dragging");
-      if (frame.hasPointerCapture(ended.id)) frame.releasePointerCapture(ended.id);
-      if (ended.dragging) {
-        suppressClickUntil = performance.now() + 500;
-        const inertia = Math.max(-1.5, Math.min(1.5, ended.speed * .22));
-        turnTo(Math.round(rotation + (reduced.matches ? 0 : inertia)));
-      } else schedule();
+      schedule();
     };
-    window.addEventListener("pointerup", release, options);
-    frame.addEventListener("pointercancel", (event) => {
-      if (gesture) gesture.speed = 0;
-      release(event);
+    frame.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1) { release(undefined, true); return; }
+      const touch = event.touches[0];
+      begin(touch.identifier, 'touch', touch.clientX, touch.clientY, event.target);
+    }, { ...options, passive: true });
+    frame.addEventListener('touchmove', (event) => {
+      if (gesture?.input !== 'touch') return;
+      if (event.touches.length !== 1) { release(undefined, true); return; }
+      const touch = Array.from(event.touches).find((item) => item.identifier === gesture!.id);
+      if (touch) move(touch.clientX, touch.clientY, event);
+    }, { ...options, passive: false });
+    window.addEventListener('touchend', (event) => {
+      if (gesture?.input !== 'touch') return;
+      const touch = Array.from(event.changedTouches).find((item) => item.identifier === gesture!.id);
+      if (!touch) return;
+      // The explicit tap above opens once; do not also dispatch a delayed click.
+      if ((gesture.dragging || gesture.slot) && event.cancelable) event.preventDefault();
+      release({ x: touch.clientX, y: touch.clientY });
+    }, { ...options, passive: false });
+    window.addEventListener('touchcancel', (event) => {
+      if (gesture?.input === 'touch' && Array.from(event.changedTouches).some((item) => item.identifier === gesture!.id)) release(undefined, true);
     }, options);
-    frame.addEventListener("lostpointercapture", release, options);
+    frame.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'touch' || !event.isPrimary || event.button !== 0) return;
+      begin(event.pointerId, 'pointer', event.clientX, event.clientY, event.target);
+      if (gesture?.input === 'pointer') frame.setPointerCapture(event.pointerId);
+    }, options);
+    frame.addEventListener('pointermove', (event) => {
+      if (gesture?.input === 'pointer' && event.pointerType !== 'touch' && event.pointerId === gesture.id) move(event.clientX, event.clientY, event);
+    }, options);
+    window.addEventListener('pointerup', (event) => {
+      if (gesture?.input === 'pointer' && event.pointerType !== 'touch' && event.pointerId === gesture.id) release({ x: event.clientX, y: event.clientY });
+    }, options);
+    const cancelPointer = (event: PointerEvent) => {
+      if (gesture?.input === 'pointer' && event.pointerType !== 'touch' && event.pointerId === gesture.id) release(undefined, true);
+    };
+    frame.addEventListener('pointercancel', cancelPointer, options);
+    frame.addEventListener('lostpointercapture', cancelPointer, options);
     frame.addEventListener("keydown", (event) => {
       if (event.key === "ArrowRight") { event.preventDefault(); turnTo(Math.round(rotation) + 1); }
       if (event.key === "ArrowLeft") { event.preventDefault(); turnTo(Math.round(rotation) - 1); }
     }, options);
     frame.addEventListener("contextmenu", (event) => event.preventDefault(), options);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) release(); schedule(); }, options);
-    window.addEventListener("blur", () => release(), options);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) release(undefined, true); schedule(); }, options);
+    window.addEventListener("blur", () => release(undefined, true), options);
     reduced.addEventListener("change", () => {
-      if (reduced.matches) { auto = false; rotation = Math.round(rotation); target = null; }
+      auto = !reduced.matches;
+      if (reduced.matches) { rotation = Math.round(rotation); target = null; momentum = 0; }
       paint(); schedule();
     }, options);
     phone.addEventListener("change", () => {
@@ -310,6 +400,7 @@ function initPhotoOrbits() {
     const resize = new ResizeObserver(() => {
       frameWidth = frame.clientWidth || frameWidth;
       cardWidth = slots[0].button.clientWidth || cardWidth;
+      cardHeight = slots[0].button.clientHeight || cardHeight;
       if (phone.matches) distanceLayout.layout();
       paint();
     });

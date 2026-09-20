@@ -505,4 +505,15 @@ import "../styles/global.css";
       animation: none;
     }
   }
+
+  @media (max-width: 768px) {
+    :global(html.lab-mobile-embed) .masthead { display: none; }
+    :global(html.lab-mobile-embed) .toolbar { inset: auto 12px 12px; }
+    :global(html.lab-mobile-embed) .details { left: 12px; bottom: 70px; }
+    :global(html.lab-mobile-embed) .reference { top: 12px; right: 12px; width: calc(100vw - 24px); }
+  }
+
+  @media (max-width: 768px) and (max-height: 430px) {
+    :global(html.lab-mobile-embed) .details { display: none; }
+  }
 </style>
