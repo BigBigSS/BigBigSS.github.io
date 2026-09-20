@@ -1785,6 +1785,8 @@
         liveVideoSrc: item.liveVideoSrc || "",
         originalImageSrc: item.originalImageSrc || "",
         originalVideoSrc: item.originalVideoSrc || "",
+        takenAt: item.takenAt || "",
+        hasLocation: Boolean(item.hasLocation),
         post: item.post || null,
         tone: item.tone || "any",
         ...(item.importHash ? { importHash: item.importHash } : {}),

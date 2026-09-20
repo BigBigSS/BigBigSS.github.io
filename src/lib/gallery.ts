@@ -10,6 +10,8 @@ export type GalleryItem = {
   originalImageSrc?: string;
   originalVideoSrc?: string;
   type?: "image" | "live";
+  takenAt?: string;
+  hasLocation?: boolean;
   title?: string;
   description?: string;
   mood?: string;

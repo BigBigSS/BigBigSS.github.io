@@ -12,7 +12,9 @@
     "build": "npm run gallery:generate && astro build",
     "preview": "astro preview",
     "check": "npm run gallery:generate && astro check",
-    "gallery:generate": "node ./scripts/generate-gallery.mjs"
+    "gallery:generate": "node ./scripts/generate-gallery.mjs",
+    "gallery:import:image-life": "node ./scripts/import-image-life-gallery.mjs",
+    "lab:previews": "node ./scripts/capture-lab-previews.mjs"
   },
   "overrides": {
     "vite": "7.3.2"
@@ -31,5 +33,8 @@
     "tailwindcss": "^4.2.2",
     "three": "^0.184.0",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.0"
   }
 }

@@ -1,0 +1,650 @@
+---
+import "../styles/global.css";
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="一台可输入金额、机械结算、出票并弹开钱箱的程序化 Three.js 复古收银机。"
+    />
+    <title>Mechanical Cash Register · Three.js</title>
+  </head>
+  <body>
+    <main
+      class="cash-register-app"
+      data-cash-register-app
+      data-transaction-state="idle"
+      data-drawer-open="false"
+      data-receipt-count="0"
+    >
+      <div class="scene" data-scene>
+        <canvas
+          data-canvas
+          tabindex="0"
+          aria-label="可交互的复古机械收银机 3D 场景"
+        ></canvas>
+        <div class="loading" data-loading>
+          <span class="loading__mark" aria-hidden="true"></span>
+          <span>CALIBRATING</span>
+        </div>
+      </div>
+
+      <header class="masthead">
+        <a class="back" href="/lab" aria-label="返回实验室" title="返回实验室">←</a>
+        <div class="identity">
+          <p>PROCEDURAL OBJECT / 02</p>
+          <h1>Mechanical Cash Register</h1>
+        </div>
+        <div class="status" aria-live="polite">
+          <span class="status__dot"></span>
+          <span data-status>READY</span>
+        </div>
+      </header>
+
+      <aside class="ledger" aria-label="当前交易">
+        <div>
+          <span>ENTRY</span>
+          <strong data-entry-amount>¥0.00</strong>
+        </div>
+        <div>
+          <span>ITEMS</span>
+          <strong data-item-count>00</strong>
+        </div>
+      </aside>
+
+      <aside class="details" aria-label="模型信息">
+        <p>MECHANICAL / ENAMEL STEEL / 1948</p>
+        <dl>
+          <div><dt>PARTS</dt><dd data-part-count>000</dd></div>
+          <div><dt>KEYS</dt><dd>15</dd></div>
+          <div><dt>STATE</dt><dd data-machine-state>SALE</dd></div>
+        </dl>
+      </aside>
+
+      <nav class="toolbar" aria-label="模型控制">
+        <button
+          class="tool"
+          type="button"
+          data-action="demo"
+          aria-label="播放完整交易演示"
+          title="播放完整交易演示"
+        ><span aria-hidden="true">▶</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="total"
+          aria-label="结算并出票"
+          title="结算并出票"
+        ><span aria-hidden="true">✓</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="explode"
+          aria-label="切换爆炸视图"
+          title="切换爆炸视图"
+          aria-pressed="false"
+        ><span aria-hidden="true">✣</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="rotate"
+          aria-label="切换自动旋转"
+          title="切换自动旋转"
+          aria-pressed="false"
+        ><span aria-hidden="true">↻</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="reset"
+          aria-label="复位机器和视角"
+          title="复位机器和视角"
+        ><span aria-hidden="true">⌂</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="sound"
+          aria-label="关闭机械声音"
+          title="关闭机械声音"
+          aria-pressed="true"
+        ><span aria-hidden="true">♫</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="reference"
+          aria-label="查看概念参考图"
+          title="查看概念参考图"
+          aria-pressed="false"
+        ><span aria-hidden="true">◫</span></button>
+        <button
+          class="tool"
+          type="button"
+          data-action="download"
+          aria-label="下载 GLB 模型"
+          title="下载 GLB 模型"
+        ><span aria-hidden="true">↓</span></button>
+      </nav>
+
+      <div class="accessible-controls" aria-label="收银机键盘控制">
+        {
+          ["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "."].map(
+            (key) => (
+              <button type="button" data-cash-command={key} aria-label={`输入 ${key}`}>
+                {key}
+              </button>
+            ),
+          )
+        }
+        <button type="button" data-cash-command="CLEAR" aria-label="清除当前金额">清除</button>
+        <button type="button" data-cash-command="ADD" aria-label="添加当前项目">添加</button>
+        <button type="button" data-cash-command="TOTAL" aria-label="结算并出票">结算</button>
+        <button type="button" data-cash-command="DRAWER" aria-label="开合钱箱">钱箱</button>
+        <button type="button" data-cash-command="TEAR" aria-label="撕下小票">撕票</button>
+      </div>
+
+      <aside class="reference" data-reference aria-hidden="true">
+        <div class="reference__bar">
+          <span>REFERENCE / INDUSTRIAL STUDY</span>
+          <button type="button" data-reference-close aria-label="关闭参考图" title="关闭">×</button>
+        </div>
+        <img
+          src="/cash-register/reference.png"
+          width="1536"
+          height="1024"
+          alt="红色搪瓷机械收银机概念参考图"
+        />
+      </aside>
+    </main>
+
+    <script src="../scripts/mechanical-cash-register.ts"></script>
+  </body>
+</html>
+
+<style>
+  :global(html) {
+    overflow: hidden;
+    background: #d8dcd8;
+    color-scheme: light;
+  }
+
+  :global(body) {
+    min-height: 100dvh;
+    overflow: hidden;
+    background: #d8dcd8;
+    color: #181a18;
+  }
+
+  .cash-register-app {
+    --ink: #181a18;
+    --paper: #d8dcd8;
+    --enamel: #791d20;
+    --brass: #b68b45;
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .cash-register-app::after {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background:
+      linear-gradient(90deg, rgba(24, 26, 24, 0.035) 1px, transparent 1px),
+      linear-gradient(rgba(24, 26, 24, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, #000, transparent 76%);
+  }
+
+  .scene,
+  .scene canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .scene {
+    z-index: 1;
+  }
+
+  .scene canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  .scene canvas:focus-visible {
+    outline: 1px solid rgba(24, 26, 24, 0.5);
+    outline-offset: -4px;
+  }
+
+  .masthead {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: start;
+    padding: 24px 28px;
+    border-bottom: 1px solid rgba(24, 26, 24, 0.16);
+    pointer-events: none;
+  }
+
+  .back,
+  .tool,
+  .reference button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .back {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid rgba(24, 26, 24, 0.3);
+    font-size: 1.15rem;
+    line-height: 1;
+    pointer-events: auto;
+    transition:
+      background 180ms ease,
+      color 180ms ease;
+  }
+
+  .back:hover,
+  .back:focus-visible {
+    background: var(--ink);
+    color: var(--paper);
+    outline: none;
+  }
+
+  .identity {
+    padding-top: 2px;
+  }
+
+  .identity p,
+  .details > p,
+  .status,
+  .ledger,
+  .reference__bar {
+    margin: 0;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+  }
+
+  .identity h1 {
+    margin: 3px 0 0;
+    font-size: clamp(1.25rem, 2.2vw, 1.9rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .status {
+    display: inline-flex;
+    gap: 9px;
+    align-items: center;
+    padding-top: 13px;
+  }
+
+  .status__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #27824d;
+    box-shadow: 0 0 0 4px rgba(39, 130, 77, 0.14);
+  }
+
+  .ledger {
+    position: absolute;
+    top: 112px;
+    right: 28px;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: auto auto;
+    border-top: 1px solid rgba(24, 26, 24, 0.32);
+    border-bottom: 1px solid rgba(24, 26, 24, 0.32);
+    pointer-events: none;
+  }
+
+  .ledger div {
+    display: grid;
+    min-width: 112px;
+    gap: 4px;
+    padding: 10px 12px;
+    border-right: 1px solid rgba(24, 26, 24, 0.22);
+  }
+
+  .ledger div:last-child {
+    min-width: 72px;
+    border-right: 0;
+  }
+
+  .ledger span {
+    color: rgba(24, 26, 24, 0.55);
+    font-size: 0.56rem;
+  }
+
+  .ledger strong {
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+  }
+
+  .details {
+    position: absolute;
+    bottom: 28px;
+    left: 28px;
+    z-index: 5;
+    width: min(360px, calc(100vw - 56px));
+    pointer-events: none;
+  }
+
+  .details > p {
+    margin-bottom: 10px;
+  }
+
+  .details dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    border-top: 1px solid rgba(24, 26, 24, 0.3);
+  }
+
+  .details dl div {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px 0 0;
+  }
+
+  .details dt {
+    color: rgba(24, 26, 24, 0.56);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+  }
+
+  .details dd {
+    margin: 0;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .toolbar {
+    position: absolute;
+    right: 28px;
+    bottom: 28px;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(8, 46px);
+    border: 1px solid rgba(24, 26, 24, 0.35);
+    background: rgba(216, 220, 216, 0.88);
+    backdrop-filter: blur(14px);
+  }
+
+  .tool {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border-right: 1px solid rgba(24, 26, 24, 0.22);
+    font-family: system-ui, sans-serif;
+    font-size: 1rem;
+    transition:
+      background 160ms ease,
+      color 160ms ease;
+  }
+
+  .tool:last-child {
+    border-right: 0;
+  }
+
+  .tool:hover,
+  .tool:focus-visible,
+  .tool[aria-pressed="true"]:not([data-action="sound"]),
+  .tool[data-action="sound"][aria-pressed="false"] {
+    background: var(--ink);
+    color: var(--paper);
+    outline: none;
+  }
+
+  .loading {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: grid;
+    gap: 14px;
+    place-content: center;
+    justify-items: center;
+    background: var(--paper);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    transition:
+      opacity 500ms ease,
+      visibility 500ms ease;
+  }
+
+  .loading.is-hidden {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .loading__mark {
+    width: 32px;
+    height: 32px;
+    border: 6px solid var(--brass);
+    border-top-color: var(--enamel);
+    animation: loading-spin 900ms steps(8) infinite;
+  }
+
+  .reference {
+    position: absolute;
+    top: 92px;
+    right: 28px;
+    z-index: 10;
+    width: min(490px, calc(100vw - 56px));
+    border: 1px solid rgba(24, 26, 24, 0.45);
+    background: #eceeea;
+    box-shadow: 12px 12px 0 rgba(24, 26, 24, 0.12);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease,
+      visibility 180ms ease;
+  }
+
+  .reference.is-open {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+  }
+
+  .reference__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px 9px 13px;
+    border-bottom: 1px solid rgba(24, 26, 24, 0.25);
+  }
+
+  .reference button {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    font-size: 1.2rem;
+  }
+
+  .reference img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .accessible-controls {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 9;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .accessible-controls:focus-within {
+    top: 96px;
+    left: 28px;
+    display: grid;
+    width: 280px;
+    height: auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    padding: 1px;
+    overflow: visible;
+    clip-path: none;
+    background: var(--ink);
+    white-space: normal;
+  }
+
+  .accessible-controls button {
+    min-height: 40px;
+    border: 0;
+    border-radius: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  @keyframes loading-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 820px) {
+    .masthead {
+      grid-template-columns: 40px minmax(0, 1fr);
+      padding: 16px;
+    }
+
+    .back {
+      width: 40px;
+      height: 40px;
+    }
+
+    .status {
+      display: none;
+    }
+
+    .identity p {
+      font-size: 0.54rem;
+    }
+
+    .identity h1 {
+      max-width: 210px;
+      font-size: 1.05rem;
+      line-height: 1.08;
+    }
+
+    .ledger {
+      top: 80px;
+      right: 16px;
+    }
+
+    .ledger div {
+      min-width: 92px;
+      padding: 8px 9px;
+    }
+
+    .ledger div:last-child {
+      min-width: 58px;
+    }
+
+    .details {
+      bottom: 118px;
+      left: 16px;
+      width: 220px;
+    }
+
+    .details > p {
+      display: none;
+    }
+
+    .toolbar {
+      right: 16px;
+      bottom: 16px;
+      left: 16px;
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .tool {
+      width: 100%;
+      height: 44px;
+    }
+
+    .tool:nth-child(4),
+    .tool:nth-child(8) {
+      border-right: 0;
+    }
+
+    .tool:nth-child(-n + 4) {
+      border-bottom: 1px solid rgba(24, 26, 24, 0.22);
+    }
+
+    .reference {
+      top: 76px;
+      right: 16px;
+      width: calc(100vw - 32px);
+    }
+
+    .accessible-controls:focus-within {
+      top: 144px;
+      right: 16px;
+      left: 16px;
+      width: auto;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .ledger {
+      right: auto;
+      left: 16px;
+    }
+
+    .details {
+      width: 200px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loading__mark {
+      animation: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .toolbar,
+    .tool,
+    .back,
+    .ledger {
+      border-color: CanvasText;
+    }
+  }
+</style>

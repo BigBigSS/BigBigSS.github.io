@@ -22,7 +22,7 @@ const nowItems = await Promise.all(
     rendered: await render(entry),
   })),
 );
-const galleryItems = await getGalleryItems(60);
+const galleryItems = await getGalleryItems();
 ---
 
 <BaseLayout

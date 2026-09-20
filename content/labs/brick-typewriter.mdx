@@ -1,0 +1,28 @@
+---
+title: Brick Typewriter · 积木机械打字机
+description: 一台以红黄 ABS 积木构成的老式机械打字机。模型由 Three.js 程序化搭建，可实时响应实体键盘输入，并支持运镜、爆炸视图与 GLB 导出。
+date: 2026-07-29T14:30:00
+tags:
+  - three-js
+  - procedural-3d
+  - interactive
+  - webgl
+demo: /typewriter
+source: 本地程序化 Three.js 建模，包含实时键盘机械联动与 GLB 动画导出
+cover: /lab-covers/brick-typewriter.webp
+previewWebm: /lab-previews/brick-typewriter.webm
+previewMp4: /lab-previews/brick-typewriter.mp4
+draft: false
+---
+
+## 从概念图到程序化模型
+
+这个实验从一张红黄主色的积木打字机概念图出发，没有依赖外部模型文件。机身、键盘、字锤篮、色带、滚筒、纸张和回车杆都由基础几何体在 Three.js 中组合生成。外壳使用带微颗粒凹凸的 ABS 材质，并通过凸点阵列、模块拼缝和分色零件强化积木结构。
+
+## 实时机械输入
+
+页面直接监听实体键盘输入。输入英文字母、数字、空格和常用标点时，对应按键会下沉，字锤向纸面敲击，滑架随当前行逐字移动；回车会复位滑架并带动回车杆，退格则同步移除纸面字符。自动打字演示和自由输入使用同一套纸面绘制与机械状态。
+
+## 可拆解、可导出
+
+模型的主要组件记录了独立的装配位置和爆炸方向，可以在完整形态与拆解视图之间平滑切换。导出功能会恢复模型的原始比例和装配位置，生成包含 `TypingLoop` 动画片段的 GLB 文件。

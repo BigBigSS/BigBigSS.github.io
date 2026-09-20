@@ -18,6 +18,8 @@ type BarrelGalleryItem = {
   title?: string;
   description?: string;
   mood?: string;
+  takenAt?: string;
+  hasLocation?: boolean;
   post?: string | null;
   tone?: string;
   type?: "image" | "live";
@@ -35,28 +37,27 @@ const fallbackItems: BarrelGalleryItem[] = Array.from({ length: CARD_COUNT }, (_
   tone: "any",
   type: "image",
 }));
-const cardItems: BarrelGalleryItem[] = items.length
-  ? Array.from({ length: CARD_COUNT }, (_, i) => {
-      const item = items[i % items.length];
-      return {
-        src: item.src,
-        thumbSrc: item.thumbSrc,
-        fullSrc: item.fullSrc,
-        liveVideoSrc: item.liveVideoSrc,
-        originalVideoSrc: item.originalVideoSrc,
-        alt: item.alt,
-        title: item.title,
-        description: item.description,
-        mood: item.mood || "日常",
-        type: item.type,
-      };
-    })
+const galleryItems: BarrelGalleryItem[] = items.length
+  ? items.map((item) => ({
+      src: item.src,
+      thumbSrc: item.thumbSrc,
+      fullSrc: item.fullSrc,
+      liveVideoSrc: item.liveVideoSrc,
+      originalVideoSrc: item.originalVideoSrc,
+      alt: item.alt,
+      title: item.title,
+      description: item.description,
+      mood: item.mood || "日常",
+      takenAt: item.takenAt,
+      hasLocation: item.hasLocation,
+      type: item.type,
+    }))
   : fallbackItems;
 ---
 
 <section class="barrel3d" id="gallery">
   <p class="barrel3d__eyebrow">06 / MY LIFE</p>
-  <div class="barrel3d__stage" data-barrel3d data-items={JSON.stringify(cardItems)}></div>
+  <div class="barrel3d__stage" data-barrel3d data-items={JSON.stringify(galleryItems)}></div>
   
   <div class="barrel3d__journal-overlay" data-barrel3d-journal-overlay>
     <div class="barrel3d__journal-card">
@@ -66,6 +67,7 @@ const cardItems: BarrelGalleryItem[] = items.length
       </div>
       <h4 class="journal-card__title" data-journal-title></h4>
       <p class="journal-card__desc" data-journal-desc></p>
+      <p class="journal-card__meta" data-journal-meta></p>
     </div>
   </div>
 </section>
@@ -116,6 +118,8 @@ const cardItems: BarrelGalleryItem[] = items.length
       title?: string;
       description?: string;
       mood?: string;
+      takenAt?: string;
+      hasLocation?: boolean;
       type?: string;
     }> = [];
     try {
@@ -123,7 +127,17 @@ const cardItems: BarrelGalleryItem[] = items.length
     } catch (_) {
       cardItems = [];
     }
-    const getThumbSrc = (index: number) => cardItems[index]?.thumbSrc || cardItems[index]?.src || "";
+    const shuffle = <T,>(values: T[]) => {
+      const next = [...values];
+      for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+      }
+      return next;
+    };
+    cardItems = shuffle(cardItems);
+    const getThumbSrc = (itemIndex: number) =>
+      cardItems[itemIndex]?.thumbSrc || cardItems[itemIndex]?.src || "";
 
     const getSize = () => {
       const rect = mount.getBoundingClientRect();
@@ -212,9 +226,13 @@ const cardItems: BarrelGalleryItem[] = items.length
 
     const isMobile = window.matchMedia("(max-width: 700px)").matches;
     const N = Math.min(cardItems.length, isMobile ? 30 : 44);
+    mount.dataset.activeCardCount = String(N);
+    mount.dataset.galleryItemCount = String(cardItems.length);
+    mount.dataset.swapCount = "0";
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cards: Array<{
       id: number;
+      galleryIndex: number;
       y: number;
       radius: number;
       baseTheta: number;
@@ -230,6 +248,11 @@ const cardItems: BarrelGalleryItem[] = items.length
       liveVideoSrc: string;
       livePlaybackToken: number;
       isLoadingFull: boolean;
+      nextSwapAt: number;
+      swapPhase: "idle" | "out" | "in";
+      swapStartedAt: number;
+      pendingGalleryIndex: number | null;
+      pendingTexture: import("three").Texture | null;
       badgeMat: import("three").MeshBasicMaterial | null;
       badgeMesh: import("three").Mesh | null;
       group: import("three").Group;
@@ -238,6 +261,8 @@ const cardItems: BarrelGalleryItem[] = items.length
       description: string;
       title: string;
       mood: string;
+      takenAt: string;
+      hasLocation: boolean;
     }> = [];
     const hitTargets: import("three").Object3D[] = [];
     const geometries: import("three").BufferGeometry[] = [];
@@ -339,7 +364,7 @@ const cardItems: BarrelGalleryItem[] = items.length
 
       let badgeMat: import("three").MeshBasicMaterial | null = null;
       let badgeMesh: import("three").Mesh | null = null;
-      if (cardItems[i]?.type === "live" && liveBadgeTexture) {
+      if (liveBadgeTexture) {
         const badgeSize = Math.min(w, h) * 0.18;
         const badgeGeo = new THREE.PlaneGeometry(badgeSize, badgeSize);
         badgeMat = new THREE.MeshBasicMaterial({
@@ -352,6 +377,7 @@ const cardItems: BarrelGalleryItem[] = items.length
         badgeMesh = new THREE.Mesh(badgeGeo, badgeMat);
         badgeMesh.position.set(w / 2 - badgeSize * 0.72, -h / 2 + badgeSize * 0.72, 0.05);
         badgeMesh.renderOrder = 2;
+        badgeMesh.visible = cardItems[i]?.type === "live";
         badgeMesh.userData.parentGroup = cardGroup;
         cardGroup.add(badgeMesh);
         hitTargets.push(badgeMesh);
@@ -363,6 +389,7 @@ const cardItems: BarrelGalleryItem[] = items.length
 
       const cardRecord = {
         id: i,
+        galleryIndex: i,
         y,
         radius,
         baseTheta,
@@ -378,6 +405,11 @@ const cardItems: BarrelGalleryItem[] = items.length
         liveVideoSrc: "",
         livePlaybackToken: 0,
         isLoadingFull: false,
+        nextSwapAt: performance.now() + 3000 + Math.random() * 12000,
+        swapPhase: "idle" as const,
+        swapStartedAt: 0,
+        pendingGalleryIndex: null as number | null,
+        pendingTexture: null as import("three").Texture | null,
         badgeMat,
         badgeMesh,
         group: cardGroup,
@@ -386,6 +418,8 @@ const cardItems: BarrelGalleryItem[] = items.length
         description: cardItems[i]?.description || "",
         title: cardItems[i]?.title || cardItems[i]?.alt || "",
         mood: cardItems[i]?.mood || "日常",
+        takenAt: cardItems[i]?.takenAt || "",
+        hasLocation: Boolean(cardItems[i]?.hasLocation),
       };
       cards.push(cardRecord);
       hitTargets.push(picMesh, backMesh);
@@ -394,8 +428,10 @@ const cardItems: BarrelGalleryItem[] = items.length
       groupNode.add(cardGroup);
 
       textureJobs.push(() => new Promise((resolve) => {
-        const src = getThumbSrc(i);
+        const src = getThumbSrc(cardRecord.galleryIndex);
         if (!src || disposed) {
+          retryGalleryIndex(cardRecord.galleryIndex);
+          initialLoadsRemaining -= 1;
           resolve();
           return;
         }
@@ -424,16 +460,56 @@ const cardItems: BarrelGalleryItem[] = items.length
             picMat.map = texture;
             picMat.color.setHex(0xffffff);
             picMat.needsUpdate = true;
+            completeGalleryIndex(cardRecord.galleryIndex);
+            initialLoadsRemaining -= 1;
             resolve();
           },
           undefined,
-          () => resolve(),
+          () => {
+            retryGalleryIndex(cardRecord.galleryIndex);
+            initialLoadsRemaining -= 1;
+            resolve();
+          },
         );
       }));
     }
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    // Reserve each image until it has actually reached a card. Failed loads
+    // return to this round; a new round cannot overtake unfinished requests.
+    const shownThisRound = new Set<number>();
+    const reservedIndices = new Set(Array.from({ length: N }, (_, index) => index));
+    let initialLoadsRemaining = N;
+    let galleryDeck = shuffle(
+      Array.from({ length: Math.max(cardItems.length - N, 0) }, (_, index) => index + N),
+    );
+    const completeGalleryIndex = (index: number) => {
+      reservedIndices.delete(index);
+      shownThisRound.add(index);
+    };
+    const retryGalleryIndex = (index: number) => {
+      if (!reservedIndices.delete(index)) return;
+      galleryDeck.push(index);
+    };
+    const takeNextGalleryIndex = (card: (typeof cards)[number]) => {
+      if (cardItems.length <= N || initialLoadsRemaining > 0) return null;
+      if (!galleryDeck.length) {
+        if (reservedIndices.size || shownThisRound.size !== cardItems.length) return null;
+        shownThisRound.clear();
+        galleryDeck = shuffle(Array.from({ length: cardItems.length }, (_, index) => index));
+      }
+      const visible = new Set(cards.filter((entry) => entry.thumbTexture).map((entry) => entry.galleryIndex));
+      // First replace cards carried over from the previous round. Their images
+      // remain queued and can then appear elsewhere without duplicate wall cards.
+      const hasWaitingVisible = galleryDeck.some((index) => visible.has(index));
+      if (hasWaitingVisible && !galleryDeck.includes(card.galleryIndex)) return null;
+      const position = galleryDeck.findIndex((index) => !visible.has(index));
+      if (position < 0) return null;
+      const [index] = galleryDeck.splice(position, 1);
+      reservedIndices.add(index);
+      return index;
+    };
     const state = {
       focusedId: null as number | null,
       targetRot: 0,
@@ -443,6 +519,7 @@ const cardItems: BarrelGalleryItem[] = items.length
       lastRot: 0,
       dragDist: 0,
       isInViewport: false,
+      activeSwapJobs: 0,
     };
 
     const imageAspectFromTexture = (texture: import("three").Texture) => {
@@ -458,6 +535,60 @@ const cardItems: BarrelGalleryItem[] = items.length
       texture.repeat.set(1, 1);
       texture.offset.set(0, 0);
       texture.needsUpdate = true;
+    };
+
+    const itemForCard = (card: (typeof cards)[number]) => cardItems[card.galleryIndex];
+
+    const configureThumbTexture = (
+      texture: import("three").Texture,
+    ) => {
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
+      const imageAspect = imageAspectFromTexture(texture);
+      fitTextureCover(texture, imageAspect);
+      return imageAspect;
+    };
+
+    const disposeCardFocusMedia = (card: (typeof cards)[number]) => {
+      stopLiveTexture(card);
+      card.liveVideo?.removeAttribute("src");
+      card.liveVideo?.load();
+      card.liveVideo = null;
+      card.liveVideoTexture?.dispose();
+      card.liveVideoTexture = null;
+      card.liveVideoSrc = "";
+      card.fullTexture?.dispose();
+      card.fullTexture = null;
+      card.fullTextureSrc = "";
+      card.fullAspect = null;
+      card.isLoadingFull = false;
+    };
+
+    const applyGalleryItemToCard = (
+      card: (typeof cards)[number],
+      galleryIndex: number,
+      texture: import("three").Texture,
+    ) => {
+      const item = cardItems[galleryIndex];
+      const oldTexture = card.thumbTexture;
+      disposeCardFocusMedia(card);
+      card.galleryIndex = galleryIndex;
+      card.description = item?.description || "";
+      card.title = item?.title || item?.alt || "";
+      card.mood = item?.mood || "日常";
+      card.takenAt = item?.takenAt || "";
+      card.hasLocation = Boolean(item?.hasLocation);
+      card.thumbAspect = configureThumbTexture(texture);
+      card.thumbTexture = texture;
+      card.picMat.map = texture;
+      card.picMat.color.setHex(0xffffff);
+      card.picMat.needsUpdate = true;
+      if (card.badgeMesh) card.badgeMesh.visible = item?.type === "live";
+      if (oldTexture && oldTexture !== texture) oldTexture.dispose();
+      mount.dataset.swapCount = String(Number(mount.dataset.swapCount || "0") + 1);
     };
 
     const applyFocusedTexture = (card: (typeof cards)[number], texture: import("three").Texture, src: string) => {
@@ -483,7 +614,7 @@ const cardItems: BarrelGalleryItem[] = items.length
     };
 
     const playLiveTexture = async (card: (typeof cards)[number]) => {
-      const src = cardItems[card.id]?.liveVideoSrc || "";
+      const src = itemForCard(card)?.liveVideoSrc || "";
       if (!src) return;
 
       if (!card.liveVideo || card.liveVideoSrc !== src) {
@@ -552,7 +683,8 @@ const cardItems: BarrelGalleryItem[] = items.length
     };
 
     const loadFullTexture = (card: (typeof cards)[number]) => {
-      const src = cardItems[card.id]?.fullSrc || cardItems[card.id]?.src || "";
+      const item = itemForCard(card);
+      const src = item?.fullSrc || item?.src || "";
       if (!src) return;
       if (card.fullTexture && card.fullTextureSrc === src) {
         applyFocusedTexture(card, card.fullTexture, src);
@@ -575,7 +707,7 @@ const cardItems: BarrelGalleryItem[] = items.length
           if ((THREE as any).SRGBColorSpace) texture.colorSpace = (THREE as any).SRGBColorSpace;
           loadedTextures.push(texture);
           if (state.focusedId === card.id) {
-            const isLivePlaying = cardItems[card.id]?.type === "live" && card.liveVideo && !card.liveVideo.paused;
+            const isLivePlaying = itemForCard(card)?.type === "live" && card.liveVideo && !card.liveVideo.paused;
             if (isLivePlaying) {
               card.fullTexture = texture;
               card.fullTextureSrc = src;
@@ -618,6 +750,11 @@ const cardItems: BarrelGalleryItem[] = items.length
       "风景": "⛰️ 风景",
       "独处": "🍃 独处",
     };
+    const journalMeta = sectionRoot.querySelector<HTMLElement>("[data-journal-meta]");
+    const formatTakenAt = (value: string) => {
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/u);
+      return match ? `${match[1]}.${match[2]}.${match[3]} ${match[4]}:${match[5]}` : "";
+    };
 
     const setFocusedCard = (targetId: number | null) => {
       const previousId = state.focusedId;
@@ -634,10 +771,11 @@ const cardItems: BarrelGalleryItem[] = items.length
       if (targetId !== null) {
         const target = cards.find((card) => card.id === targetId);
         if (target) {
+          const targetItem = itemForCard(target);
           loadFullTexture(target);
-          if (cardItems[target.id]?.type === "live") void playLiveTexture(target);
+          if (targetItem?.type === "live") void playLiveTexture(target);
           
-          if (target.description) {
+          if (target.description || target.takenAt || target.hasLocation) {
             if (journalDesc) journalDesc.textContent = target.description;
             
             // 智能过滤无意义标题
@@ -652,7 +790,18 @@ const cardItems: BarrelGalleryItem[] = items.length
 
             // 渲染心情徽章
             if (journalMood) {
-              journalMood.textContent = moodEmojis[target.mood] || `💬 ${target.mood || "日常"}`;
+              journalMood.textContent =
+                targetItem?.type === "live"
+                  ? "实况照片"
+                  : moodEmojis[target.mood] || target.mood || "日常";
+            }
+            if (journalMeta) {
+              const meta = [
+                formatTakenAt(target.takenAt),
+                target.hasLocation ? "含拍摄位置" : "",
+              ].filter(Boolean);
+              journalMeta.textContent = meta.join(" · ");
+              journalMeta.style.display = meta.length ? "block" : "none";
             }
 
             journalOverlay?.classList.add("active");
@@ -717,7 +866,7 @@ const cardItems: BarrelGalleryItem[] = items.length
         const hit = intersects[0].object as import("three").Mesh;
         const targetId = (hit.userData.parentGroup as import("three").Group).userData.id as number;
         if (state.focusedId !== null) {
-          if (state.focusedId === targetId && cardItems[targetId]?.type === "live") {
+          if (state.focusedId === targetId && itemForCard(cards[targetId])?.type === "live") {
             const target = cards.find((card) => card.id === targetId);
             if (target) void playLiveTexture(target);
             return;
@@ -797,6 +946,107 @@ const cardItems: BarrelGalleryItem[] = items.length
       pump();
     };
 
+    const scheduleNextSwap = (card: (typeof cards)[number], now = performance.now()) => {
+      const minimum = isMobile ? 9000 : 5000;
+      const variance = isMobile ? 5000 : 3000;
+      card.nextSwapAt = now + minimum + Math.random() * variance;
+    };
+
+    const beginCardSwap = (card: (typeof cards)[number]) => {
+      if (
+        disposed ||
+        prefersReducedMotion ||
+        !state.isInViewport ||
+        state.focusedId === card.id ||
+        card.swapPhase !== "idle" ||
+        card.pendingGalleryIndex !== null ||
+        state.activeSwapJobs >= (isMobile ? 1 : 2)
+      ) {
+        return;
+      }
+      const nextGalleryIndex = takeNextGalleryIndex(card);
+      if (nextGalleryIndex === null) return;
+      const src = getThumbSrc(nextGalleryIndex);
+      if (!src) {
+        retryGalleryIndex(nextGalleryIndex);
+        scheduleNextSwap(card);
+        return;
+      }
+
+      state.activeSwapJobs += 1;
+      card.pendingGalleryIndex = nextGalleryIndex;
+      const aspect = card.thumbAspect || card.baseW / card.baseH;
+      textureLoader.load(
+        buildSizedTextureSrc(src, aspect, false),
+        (texture) => {
+          if (disposed || card.pendingGalleryIndex !== nextGalleryIndex) {
+            retryGalleryIndex(nextGalleryIndex);
+            texture.dispose();
+            state.activeSwapJobs = Math.max(0, state.activeSwapJobs - 1);
+            return;
+          }
+          configureThumbTexture(texture);
+          card.pendingTexture = texture;
+          card.swapPhase = "out";
+          card.swapStartedAt = performance.now();
+          startAnimation();
+        },
+        undefined,
+        () => {
+          retryGalleryIndex(nextGalleryIndex);
+          card.pendingGalleryIndex = null;
+          state.activeSwapJobs = Math.max(0, state.activeSwapJobs - 1);
+          scheduleNextSwap(card);
+        },
+      );
+    };
+
+    const advanceCardSwap = (card: (typeof cards)[number], now: number) => {
+      if (card.swapPhase === "idle") return 1;
+      const elapsed = now - card.swapStartedAt;
+      if (card.swapPhase === "out") {
+        const progress = Math.min(elapsed / 360, 1);
+        if (progress >= 1 && card.pendingTexture && card.pendingGalleryIndex !== null) {
+          applyGalleryItemToCard(card, card.pendingGalleryIndex, card.pendingTexture);
+          completeGalleryIndex(card.pendingGalleryIndex);
+          card.pendingTexture = null;
+          card.pendingGalleryIndex = null;
+          card.swapPhase = "in";
+          card.swapStartedAt = now;
+          return 0.14;
+        }
+        return 1 - progress * 0.86;
+      }
+
+      const progress = Math.min(elapsed / 520, 1);
+      if (progress >= 1) {
+        card.swapPhase = "idle";
+        state.activeSwapJobs = Math.max(0, state.activeSwapJobs - 1);
+        scheduleNextSwap(card, now);
+        return 1;
+      }
+      return 0.14 + (1 - Math.pow(1 - progress, 3)) * 0.86;
+    };
+
+    const pumpDueSwaps = (now: number) => {
+      const availableSlots = (isMobile ? 1 : 2) - state.activeSwapJobs;
+      if (availableSlots <= 0) return;
+      cards
+        .filter(
+          (card) =>
+            card.swapPhase === "idle" &&
+            card.pendingGalleryIndex === null &&
+            card.nextSwapAt <= now &&
+            state.focusedId !== card.id,
+        )
+        .sort((a, b) =>
+          Number(galleryDeck.includes(b.galleryIndex)) - Number(galleryDeck.includes(a.galleryIndex)) ||
+          a.nextSwapAt - b.nextSwapAt,
+        )
+        .slice(0, availableSlots)
+        .forEach(beginCardSwap);
+    };
+
     const renderFrame = () => {
       const now = performance.now();
       const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
@@ -811,10 +1061,9 @@ const cardItems: BarrelGalleryItem[] = items.length
       const focusDistance = Math.max(camera.position.z - 15, 1);
       const visibleH = 2 * Math.tan((camera.fov * Math.PI) / 360) * focusDistance;
       const visibleW = visibleH * camera.aspect;
-      const maxFocusW = visibleW * (isMobile ? 0.88 : 0.78);
-      const maxFocusH = visibleH * (isMobile ? 0.76 : 0.74);
-
+      pumpDueSwaps(now);
       cards.forEach((card) => {
+        const swapVisibility = advanceCardSwap(card, now);
         const { group } = card;
         const isFocused = card.id === state.focusedId;
         let tx: number, ty: number, tz: number, trY: number, targetScaleX: number, targetScaleY: number, targetOpacity: number;
@@ -876,8 +1125,9 @@ const cardItems: BarrelGalleryItem[] = items.length
         targetEuler.set(0, trY, 0);
         targetQuat.setFromEuler(targetEuler);
         group.quaternion.slerp(targetQuat, rotationAlpha);
-        group.scale.x = damp(group.scale.x, targetScaleX, 5, dt);
-        group.scale.y = damp(group.scale.y, targetScaleY, 5, dt);
+        const swapScale = 0.975 + swapVisibility * 0.025;
+        group.scale.x = damp(group.scale.x, targetScaleX * swapScale, 5, dt);
+        group.scale.y = damp(group.scale.y, targetScaleY * swapScale, 5, dt);
         group.scale.z = damp(group.scale.z, 1, 5, dt);
         if (card.badgeMesh) {
           card.badgeMesh.scale.x = 1 / Math.max(group.scale.x, 0.001);
@@ -886,7 +1136,7 @@ const cardItems: BarrelGalleryItem[] = items.length
 
         const backingOpacity = isFocused ? 0.11 : 0.018;
         card.backMat.opacity = damp(card.backMat.opacity, targetOpacity * backingOpacity, 4, dt);
-        card.picMat.opacity = damp(card.picMat.opacity, targetOpacity, 4, dt);
+        card.picMat.opacity = damp(card.picMat.opacity, targetOpacity * swapVisibility, 9, dt);
         if (card.badgeMat) {
           card.badgeMat.opacity = damp(card.badgeMat.opacity, targetOpacity * (isFocused ? 0.9 : 0.82), 4, dt);
         }
@@ -978,6 +1228,13 @@ const cardItems: BarrelGalleryItem[] = items.length
       visibilityObserver?.disconnect();
       resizeObserver.disconnect();
       if (mount.contains(canvas)) mount.removeChild(canvas);
+      cards.forEach((card) => {
+        card.liveVideo?.pause();
+        card.pendingTexture?.dispose();
+        card.thumbTexture?.dispose();
+        card.fullTexture?.dispose();
+        card.liveVideoTexture?.dispose();
+      });
       loadedTextures.forEach((texture) => texture.dispose());
       materials.forEach((material) => material.dispose());
       geometries.forEach((geometry) => geometry.dispose());
@@ -1213,6 +1470,14 @@ const cardItems: BarrelGalleryItem[] = items.length
     color: var(--text-secondary);
     white-space: pre-wrap;
     letter-spacing: 0.01em;
+  }
+
+  .journal-card__meta {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
   }
 
   :global(body.light-mode) .journal-card__desc {

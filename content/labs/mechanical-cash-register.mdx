@@ -1,0 +1,32 @@
+---
+title: Mechanical Cash Register · 机械收银机
+description: 一台由搪瓷钢、黑胶木、黄铜与镀铬零件构成的程序化机械收银机。可以直接输入金额、添加多笔项目、摇柄结算、出票、响铃并弹开钱箱。
+date: 2026-07-29T17:00:00+08:00
+tags:
+  - three-js
+  - procedural-3d
+  - interactive
+  - webgl
+demo: /cash-register
+source: 本地程序化 Three.js 建模，包含金额滚轮、齿轮传动、动态小票和钱箱状态机
+cover: /lab-covers/mechanical-cash-register.webp
+previewWebm: /lab-previews/mechanical-cash-register.webm
+previewMp4: /lab-previews/mechanical-cash-register.mp4
+draft: false
+---
+
+## 从输入到结算
+
+这件实验围绕一条完整的机械因果链展开：数字键下沉后驱动金额滚轮，添加项目会让送纸机构前进一行，结算摇柄则统一带动外露齿轮、主轴、票据滚轮和钱箱锁舌。铃锤越过凸轮后敲响黄铜铃，钱箱随后弹开。
+
+## 两套输入，共用一台机器
+
+页面同时响应实体键盘与 3D 键帽点按。数字、十进制、清除、添加项目和结算都会进入同一套交易数据与机械动画；点击摇柄可以自动完成结算，也可以拖动摇柄观察齿轮按传动比同步转动。
+
+## 动态小票与钱箱
+
+每笔项目以整数分记录，小票通过 CanvasTexture 即时排版。结算时纸卷和送纸滚轮按实际进纸距离转动，完整票据从切刀下方送出；点击小票可以撕下，点击钱箱把手则可开合抽屉并开始下一笔交易。
+
+## 可拆解机械结构
+
+机身、键盘、金额鼓、铃铛、出票机构、齿轮组、摇柄与钱箱都保留独立装配层级。爆炸视图会沿各自方向展开主要总成，方便观察从输入轴到最终执行机构的连接关系。

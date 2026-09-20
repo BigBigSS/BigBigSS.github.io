@@ -126,6 +126,8 @@ const normalizeGalleryItem = (item, index = 0) => {
     ...(item.liveVideoSrc ? { liveVideoSrc: item.liveVideoSrc } : {}),
     ...(item.originalImageSrc ? { originalImageSrc: item.originalImageSrc } : {}),
     ...(item.originalVideoSrc ? { originalVideoSrc: item.originalVideoSrc } : {}),
+    ...(item.takenAt ? { takenAt: item.takenAt } : {}),
+    ...(item.hasLocation ? { hasLocation: true } : {}),
     post: item.post || null,
     tone: item.tone || "any",
     ...(item.importHash ? { importHash: item.importHash } : {}),

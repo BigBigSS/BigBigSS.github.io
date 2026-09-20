@@ -26,6 +26,9 @@ const labs = defineCollection({
     download: z.string().optional(),
     source: z.string().optional(),
     draft: z.boolean().default(false),
+    cover: z.string().optional(),
+    previewWebm: z.string().optional(),
+    previewMp4: z.string().optional(),
   }),
 });
 

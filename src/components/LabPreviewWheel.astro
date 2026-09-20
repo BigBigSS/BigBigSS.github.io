@@ -1,0 +1,1026 @@
+---
+import type { CollectionEntry } from "astro:content";
+
+interface Props {
+  labs: CollectionEntry<"labs">[];
+}
+
+const { labs } = Astro.props;
+const angleStep = labs.length > 0 ? 360 / labs.length : 0;
+---
+
+<aside
+  class="lab-wheel"
+  data-lab-wheel
+  aria-label="当前实验预览，可滚动或拖动切换"
+  tabindex="0"
+>
+  <div class="lab-wheel__viewport">
+    <div class="lab-wheel__track" data-lab-wheel-track>
+      {
+        labs.map((lab, index) => (
+          <a
+            class:list={[
+              "lab-preview-anchor",
+              { "is-active": index === 0, "is-near": index === 1 },
+            ]}
+            href={`/lab/${lab.id}`}
+            data-lab-preview-card
+            data-index={index}
+            style={`--item-angle: ${index * angleStep}deg;`}
+            tabindex={index === 0 ? 0 : -1}
+            aria-label={`打开实验：${lab.data.title}`}
+          >
+            <span class="lab-preview-card">
+              <span class="lab-preview-card__media">
+                {
+                  (lab.data.previewWebm || lab.data.previewMp4) && (
+                    <video
+                      data-lab-preview-video
+                      muted
+                      loop
+                      autoplay
+                      playsinline
+                      preload="none"
+                      poster={lab.data.cover}
+                      data-webm={lab.data.previewWebm}
+                      data-mp4={lab.data.previewMp4}
+                      aria-hidden="true"
+                    />
+                  )
+                }
+                <img
+                  src={lab.data.cover}
+                  alt=""
+                  width="1200"
+                  height="750"
+                  loading={index <= 1 || index === labs.length - 1 ? "eager" : "lazy"}
+                  fetchpriority={index === 0 ? "high" : "auto"}
+                  decoding="async"
+                />
+              </span>
+              <span class="lab-preview-card__caption">
+                <span class="lab-preview-card__no">
+                  №{String(index + 1).padStart(2, "0")}
+                </span>
+                <span class="lab-preview-card__title">{lab.data.title}</span>
+                <span class="lab-preview-card__arrow" aria-hidden="true">↗</span>
+              </span>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+    <div class="lab-wheel__edge" aria-hidden="true"></div>
+  </div>
+</aside>
+
+<style>
+  .lab-wheel {
+    --wheel-radius: clamp(360px, 28vw, 420px);
+    --wheel-card-width: clamp(268px, 19vw, 300px);
+    --wheel-angle: 0deg;
+
+    position: absolute;
+    top: 0;
+    left: calc(100% + 32px);
+    display: none;
+    width: min(
+      460px,
+      calc(50vw - 440px + var(--lab-stage-shift) - 32px)
+    );
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .lab-wheel.is-dragging {
+    cursor: grabbing;
+  }
+
+  .lab-wheel__viewport {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    contain: layout paint style;
+    isolation: isolate;
+  }
+
+  .lab-wheel__viewport::before,
+  .lab-wheel__viewport::after {
+    position: absolute;
+    right: 0;
+    left: 0;
+    z-index: 10;
+    height: clamp(48px, 8vh, 76px);
+    content: "";
+    pointer-events: none;
+  }
+
+  .lab-wheel__viewport::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--bg), transparent);
+  }
+
+  .lab-wheel__viewport::after {
+    bottom: 0;
+    background: linear-gradient(to top, var(--bg), transparent);
+  }
+
+  .lab-wheel__track {
+    position: absolute;
+    top: 50%;
+    left: calc(
+      var(--wheel-radius) + (var(--wheel-card-width) / 2) + 16px
+    );
+    width: calc(var(--wheel-radius) * 2);
+    height: calc(var(--wheel-radius) * 2);
+    border: 1px solid
+      color-mix(in srgb, var(--text-primary) 11%, transparent);
+    border-radius: 50%;
+    transform: translate3d(-50%, -50%, 0) rotate(var(--wheel-angle));
+    transform-origin: 50% 50%;
+    will-change: transform;
+  }
+
+  .lab-preview-anchor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    color: inherit;
+    pointer-events: none;
+    visibility: hidden;
+    transform: rotate(var(--item-angle))
+      translateX(calc(-1 * var(--wheel-radius)));
+    transform-origin: 0 0;
+    z-index: 1;
+  }
+
+  .lab-preview-anchor.is-active,
+  .lab-preview-anchor.is-near,
+  .lab-preview-anchor.is-far {
+    visibility: visible;
+  }
+
+  .lab-preview-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: var(--wheel-card-width);
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border: 1px solid
+      color-mix(in srgb, var(--text-primary) 13%, transparent);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
+    opacity: 0;
+    backface-visibility: hidden;
+    transform: translate3d(-50%, -50%, 0)
+      rotate(calc(-1 * var(--item-angle) - var(--wheel-angle))) scale(0.86);
+    transform-origin: 50% 50%;
+    transition:
+      border-color 240ms var(--ease-cinema),
+      box-shadow 240ms var(--ease-cinema);
+  }
+
+  .lab-preview-anchor.is-far,
+  .lab-preview-anchor.is-near {
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .lab-preview-anchor.is-far .lab-preview-card {
+    opacity: 0.13;
+  }
+
+  .lab-preview-anchor.is-near {
+    z-index: 3;
+  }
+
+  .lab-preview-anchor.is-near .lab-preview-card {
+    opacity: 0.48;
+    transform: translate3d(-50%, -50%, 0)
+      rotate(calc(-1 * var(--item-angle) - var(--wheel-angle))) scale(0.92);
+  }
+
+  .lab-preview-anchor.is-active {
+    z-index: 8;
+    pointer-events: auto;
+  }
+
+  .lab-preview-anchor.is-active .lab-preview-card {
+    border-color: color-mix(
+      in srgb,
+      var(--text-primary) 36%,
+      transparent
+    );
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.18);
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0)
+      rotate(calc(-1 * var(--item-angle) - var(--wheel-angle))) scale(1);
+  }
+
+  .lab-preview-anchor:focus-visible {
+    outline: none;
+  }
+
+  .lab-preview-anchor:focus-visible .lab-preview-card {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 4px;
+  }
+
+  .lab-preview-card__media {
+    position: absolute;
+    inset: 0;
+  }
+
+  .lab-preview-card__media::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(5, 6, 8, 0.72) 0%,
+      rgba(5, 6, 8, 0.08) 48%,
+      transparent 72%
+    );
+    content: "";
+  }
+
+  .lab-preview-card__media img,
+  .lab-preview-card__media video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    backface-visibility: hidden;
+  }
+
+  .lab-preview-card__media img {
+    opacity: 1;
+    transition:
+      opacity 180ms ease-out,
+      transform 700ms var(--ease-cinema);
+  }
+
+  .lab-preview-card__media video {
+    opacity: 0;
+    transition: opacity 180ms ease-out;
+  }
+
+  .lab-preview-card__media.is-playing img {
+    opacity: 0;
+  }
+
+  .lab-preview-card__media.is-playing video {
+    opacity: 1;
+  }
+
+  .lab-preview-anchor.is-active:hover .lab-preview-card__media img,
+  .lab-preview-anchor.is-active:hover .lab-preview-card__media video {
+    transform: scale(1.025);
+  }
+
+  .lab-preview-card__caption {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+    align-self: end;
+    padding: 18px;
+    color: #fff;
+    text-shadow: 0 1px 12px rgba(0, 0, 0, 0.38);
+  }
+
+  .lab-preview-card__no {
+    color: rgba(255, 255, 255, 0.65);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .lab-preview-card__title {
+    overflow: hidden;
+    font-size: 0.94rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lab-preview-card__arrow {
+    color: rgba(255, 255, 255, 0.78);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.86rem;
+  }
+
+  .lab-wheel__edge {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--bg) 72%, transparent) 0,
+      transparent 42px
+    );
+    pointer-events: none;
+  }
+
+  @media (min-width: 1360px) {
+    .lab-wheel {
+      display: block;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lab-preview-card,
+    .lab-preview-card__media img,
+    .lab-preview-card__media video {
+      transition-duration: 1ms;
+    }
+  }
+</style>
+
+<script>
+  const labWindow = window as typeof window & {
+    __labExperienceCleanup?: () => void;
+  };
+
+  const modulo = (value: number, divisor: number) =>
+    ((value % divisor) + divisor) % divisor;
+
+  const initLabExperience = () => {
+    labWindow.__labExperienceCleanup?.();
+
+    const stage = document.querySelector<HTMLElement>("[data-lab-stage]");
+    const scroller = stage?.querySelector<HTMLElement>("[data-lab-scroll]");
+    const list = stage?.querySelector<HTMLElement>("[data-lab-list]");
+    const wheel = stage?.querySelector<HTMLElement>("[data-lab-wheel]");
+    const track = stage?.querySelector<HTMLElement>("[data-lab-wheel-track]");
+    const entries = Array.from(
+      stage?.querySelectorAll<HTMLElement>("[data-lab-entry]") ?? [],
+    );
+    const cards = Array.from(
+      stage?.querySelectorAll<HTMLAnchorElement>("[data-lab-preview-card]") ??
+        [],
+    );
+    const videos = Array.from(
+      stage?.querySelectorAll<HTMLVideoElement>("[data-lab-preview-video]") ??
+        [],
+    );
+
+    if (
+      !stage ||
+      !scroller ||
+      !list ||
+      !wheel ||
+      !track ||
+      entries.length === 0
+    ) {
+      labWindow.__labExperienceCleanup = () => {};
+      return;
+    }
+
+    const layoutQuery = window.matchMedia(
+      "(min-width: 1024px) and (min-height: 700px)",
+    );
+    const wheelQuery = window.matchMedia("(min-width: 1360px)");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = (
+      navigator as Navigator & {
+        connection?: { saveData?: boolean };
+      }
+    ).connection;
+    const itemCount = cards.length;
+    const angleStep = itemCount > 0 ? 360 / itemCount : 0;
+    let centers: number[] = [];
+    let segmentHeight = 0;
+    let loopAnchor = 0;
+    let averageStep = 1;
+    let targetProgress = 0;
+    let renderedProgress = 0;
+    let activeIndex = -1;
+    let wheelIndex = -1;
+    let animationFrame = 0;
+    let lastAnimationTime = 0;
+    let measureFrame = 0;
+    let scrollFrame = 0;
+    let settleTimer = 0;
+    let previewTimer = 0;
+    let inputResumeTimer = 0;
+    let enabled = false;
+    let hasInitialPosition = false;
+    let dragPointerId = -1;
+    let dragStartY = 0;
+    let dragStartScrollTop = 0;
+    let didDrag = false;
+    let suppressCardClick = false;
+    let currentPreviewIndex = -1;
+
+    const unloadVideo = (video: HTMLVideoElement) => {
+      video.pause();
+      video.closest(".lab-preview-card__media")?.classList.remove("is-playing");
+      video.removeAttribute("src");
+      video.preload = "none";
+      video.load();
+    };
+
+    const deactivatePreview = () => {
+      if (currentPreviewIndex < 0) return;
+      const video = cards[currentPreviewIndex]?.querySelector<HTMLVideoElement>(
+        "[data-lab-preview-video]",
+      );
+      if (video) unloadVideo(video);
+      currentPreviewIndex = -1;
+    };
+
+    const pausePreview = () => {
+      if (currentPreviewIndex < 0) return;
+      const video = cards[currentPreviewIndex]?.querySelector<HTMLVideoElement>(
+        "[data-lab-preview-video]",
+      );
+      if (!video) return;
+      video.pause();
+      video.closest(".lab-preview-card__media")?.classList.remove("is-playing");
+    };
+
+    const activatePreview = (index: number) => {
+      if (
+        reduceMotion.matches ||
+        connection?.saveData ||
+        document.hidden ||
+        !wheelQuery.matches
+      ) {
+        return;
+      }
+
+      const normalizedIndex = modulo(index, itemCount);
+      const video = cards[normalizedIndex]?.querySelector<HTMLVideoElement>(
+        "[data-lab-preview-video]",
+      );
+      if (!video) return;
+
+      if (
+        currentPreviewIndex === normalizedIndex &&
+        video.hasAttribute("src")
+      ) {
+        if (video.paused) {
+          void video.play().catch(() => {});
+        }
+        return;
+      }
+
+      if (currentPreviewIndex !== normalizedIndex) {
+        deactivatePreview();
+      }
+      currentPreviewIndex = normalizedIndex;
+      const previewSource =
+        video.dataset.webm &&
+        video.canPlayType('video/webm; codecs="vp9"') !== ""
+          ? video.dataset.webm
+          : video.dataset.mp4;
+      if (!previewSource) return;
+
+      video.preload = "auto";
+      video.src = previewSource;
+      const playWhenReady = () => {
+        const card =
+          video.closest<HTMLAnchorElement>("[data-lab-preview-card]");
+        if (
+          !card ||
+          Number(card.dataset.index) !== currentPreviewIndex ||
+          Number(card.dataset.index) !== activeIndex
+        ) {
+          return;
+        }
+        void video.play().catch(() => {
+          video
+            .closest(".lab-preview-card__media")
+            ?.classList.remove("is-playing");
+        });
+      };
+      video.addEventListener("canplay", playWhenReady, { once: true });
+      video.load();
+      playWhenReady();
+    };
+
+    const schedulePreview = () => {
+      if (previewTimer) window.clearTimeout(previewTimer);
+      if (
+        !enabled ||
+        !wheelQuery.matches ||
+        reduceMotion.matches ||
+        connection?.saveData ||
+        document.hidden
+      ) {
+        previewTimer = 0;
+        deactivatePreview();
+        return;
+      }
+      previewTimer = window.setTimeout(() => {
+        previewTimer = 0;
+        if (
+          activeIndex < 0 ||
+          activeIndex !== wheelIndex ||
+          Math.abs(targetProgress - renderedProgress) > 0.04
+        ) {
+          schedulePreview();
+          return;
+        }
+        activatePreview(activeIndex);
+      }, 170);
+    };
+
+    const scheduleInputResume = () => {
+      if (inputResumeTimer) window.clearTimeout(inputResumeTimer);
+      inputResumeTimer = window.setTimeout(() => {
+        inputResumeTimer = 0;
+        schedulePreview();
+      }, 520);
+    };
+
+    const onVideoPlaying = (event: Event) => {
+      const video = event.currentTarget as HTMLVideoElement;
+      const card = video.closest<HTMLAnchorElement>("[data-lab-preview-card]");
+      if (
+        !card ||
+        Number(card.dataset.index) !== currentPreviewIndex ||
+        Number(card.dataset.index) !== activeIndex
+      ) {
+        unloadVideo(video);
+        return;
+      }
+      video.closest(".lab-preview-card__media")?.classList.add("is-playing");
+    };
+
+    const onVideoError = (event: Event) => {
+      const video = event.currentTarget as HTMLVideoElement;
+      video.closest(".lab-preview-card__media")?.classList.remove("is-playing");
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (previewTimer) window.clearTimeout(previewTimer);
+        previewTimer = 0;
+        deactivatePreview();
+      } else {
+        schedulePreview();
+      }
+    };
+
+    const onMotionPreferenceChange = () => {
+      requestWheelAnimation();
+      if (reduceMotion.matches) {
+        if (previewTimer) window.clearTimeout(previewTimer);
+        previewTimer = 0;
+        deactivatePreview();
+      } else {
+        schedulePreview();
+      }
+    };
+
+    const applyListSelection = (progress: number) => {
+      const nextIndex = modulo(Math.round(progress), itemCount);
+
+      if (nextIndex === activeIndex) return;
+      activeIndex = nextIndex;
+
+      entries.forEach((entry) => {
+        const entryIndex = Number(entry.dataset.index);
+        const isActive = entryIndex === activeIndex;
+        entry.classList.toggle("is-active", isActive);
+        if (isActive && entry.dataset.cycle === "0") {
+          entry.setAttribute("aria-current", "true");
+        } else {
+          entry.removeAttribute("aria-current");
+        }
+      });
+
+    };
+
+    const applyWheelSelection = (progress: number) => {
+      const nextIndex = modulo(Math.round(progress), itemCount);
+      if (nextIndex === wheelIndex) return;
+      wheelIndex = nextIndex;
+
+      cards.forEach((card, index) => {
+        const directDistance = Math.abs(index - wheelIndex);
+        const distance = Math.min(
+          directDistance,
+          itemCount - directDistance,
+        );
+        card.classList.toggle("is-active", distance === 0);
+        card.classList.toggle("is-near", distance === 1);
+        card.classList.toggle("is-far", distance === 2);
+        card.tabIndex = distance === 0 ? 0 : -1;
+        card.setAttribute("aria-hidden", distance > 2 ? "true" : "false");
+      });
+    };
+
+    const applyWheel = (progress: number) => {
+      track.style.setProperty("--wheel-angle", `${progress * -angleStep}deg`);
+    };
+
+    const animateWheel = (timestamp: number) => {
+      animationFrame = 0;
+
+      if (reduceMotion.matches) {
+        renderedProgress = targetProgress;
+      } else {
+        const delta = targetProgress - renderedProgress;
+        const elapsed = lastAnimationTime
+          ? Math.min(64, timestamp - lastAnimationTime)
+          : 1000 / 60;
+        const blend = 1 - Math.exp(-elapsed * 0.012);
+        renderedProgress += delta * blend;
+        if (Math.abs(delta) < 0.001) {
+          renderedProgress = targetProgress;
+        }
+      }
+      lastAnimationTime = timestamp;
+
+      applyWheel(renderedProgress);
+      applyWheelSelection(renderedProgress);
+
+      if (renderedProgress !== targetProgress) {
+        animationFrame = window.requestAnimationFrame(animateWheel);
+      } else {
+        lastAnimationTime = 0;
+      }
+    };
+
+    const requestWheelAnimation = () => {
+      if (!wheelQuery.matches) {
+        renderedProgress = targetProgress;
+        applyWheel(renderedProgress);
+        applyWheelSelection(renderedProgress);
+        return;
+      }
+      if (!animationFrame) {
+        lastAnimationTime = 0;
+        animationFrame = window.requestAnimationFrame(animateWheel);
+      }
+    };
+
+    const progressAt = (focus: number) => {
+      if (centers.length === 0) return 0;
+      if (focus <= centers[0]) return 0;
+      if (focus >= centers[centers.length - 1]) {
+        return centers.length - 1;
+      }
+
+      let low = 0;
+      let high = centers.length - 1;
+      while (low + 1 < high) {
+        const middle = (low + high) >> 1;
+        if (centers[middle] <= focus) {
+          low = middle;
+        } else {
+          high = middle;
+        }
+      }
+
+      const start = centers[low];
+      const end = centers[high];
+      return low + (focus - start) / Math.max(1, end - start);
+    };
+
+    const rebaseScroll = (settled = false) => {
+      if (!segmentHeight || !itemCount) return;
+      const focus = scroller.scrollTop + scroller.clientHeight / 2;
+      const lowerBoundary = settled
+        ? loopAnchor - averageStep / 2
+        : centers[0] + scroller.clientHeight * 0.7;
+      const upperBoundary = settled
+        ? loopAnchor + segmentHeight - averageStep / 2
+        : centers[centers.length - 1] - scroller.clientHeight * 0.7;
+      let pixelShift = 0;
+      let itemShift = 0;
+
+      if (focus < lowerBoundary) {
+        pixelShift = segmentHeight;
+        itemShift = itemCount;
+      } else if (focus >= upperBoundary) {
+        pixelShift = -segmentHeight;
+        itemShift = -itemCount;
+      }
+
+      if (!pixelShift) return;
+      scroller.scrollTop += pixelShift;
+      targetProgress += itemShift;
+      renderedProgress += itemShift;
+      applyWheel(renderedProgress);
+    };
+
+    const scrollToIndex = (
+      index: number,
+      behavior: ScrollBehavior = "smooth",
+    ) => {
+      if (!enabled || centers.length === 0) return;
+      const normalizedIndex = modulo(index, itemCount);
+      const focus = scroller.scrollTop + scroller.clientHeight / 2;
+      let nearestEntry = -1;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      entries.forEach((entry, entryIndex) => {
+        if (Number(entry.dataset.index) !== normalizedIndex) return;
+        const distance = Math.abs(centers[entryIndex] - focus);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestEntry = entryIndex;
+        }
+      });
+
+      if (nearestEntry < 0) return;
+      scroller.scrollTo({
+        top: centers[nearestEntry] - scroller.clientHeight / 2,
+        behavior: reduceMotion.matches ? "auto" : behavior,
+      });
+    };
+
+    const settleScroll = () => {
+      settleTimer = 0;
+      if (!enabled || centers.length === 0 || dragPointerId >= 0) return;
+
+      rebaseScroll(true);
+      const focus = scroller.scrollTop + scroller.clientHeight / 2;
+      const progress = progressAt(focus);
+      const nearest = Math.round(progress);
+      const targetTop = centers[nearest] - scroller.clientHeight / 2;
+
+      if (Math.abs(targetTop - scroller.scrollTop) > 0.75) {
+        scroller.scrollTo({
+          top: targetTop,
+          behavior: reduceMotion.matches ? "auto" : "smooth",
+        });
+        scheduleSettle();
+        return;
+      }
+      schedulePreview();
+    };
+
+    const scheduleSettle = () => {
+      if (settleTimer) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(settleScroll, 110);
+    };
+
+    const syncFromScroll = () => {
+      scrollFrame = 0;
+      if (!enabled || centers.length === 0) return;
+
+      rebaseScroll(false);
+      const focus = scroller.scrollTop + scroller.clientHeight / 2;
+      const progress = progressAt(focus);
+      targetProgress = progress;
+      applyListSelection(progress);
+      requestWheelAnimation();
+      schedulePreview();
+    };
+
+    const requestScrollSync = () => {
+      if (previewTimer) window.clearTimeout(previewTimer);
+      previewTimer = 0;
+      if (!scrollFrame) {
+        scrollFrame = window.requestAnimationFrame(syncFromScroll);
+      }
+      scheduleSettle();
+    };
+
+    const measure = () => {
+      measureFrame = 0;
+      enabled = layoutQuery.matches;
+
+      if (!enabled) {
+        hasInitialPosition = false;
+        centers = [];
+        segmentHeight = 0;
+        entries.forEach((entry) => {
+          entry.classList.remove("is-active");
+          entry.removeAttribute("aria-current");
+        });
+        cards.forEach((card) => {
+          card.classList.remove("is-active", "is-near", "is-far");
+          card.tabIndex = -1;
+          card.removeAttribute("aria-hidden");
+        });
+        activeIndex = -1;
+        wheelIndex = -1;
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        centers = entries.map(
+          (entry) => entry.offsetTop + entry.offsetHeight / 2,
+        );
+        const middleStart = entries.findIndex(
+          (entry) => entry.dataset.cycle === "0",
+        );
+        const nextStart = entries.findIndex(
+          (entry) => entry.dataset.cycle === "1",
+        );
+        if (middleStart < 0 || nextStart < 0) return;
+
+        loopAnchor = centers[middleStart];
+        segmentHeight = centers[nextStart] - loopAnchor;
+        averageStep = segmentHeight / Math.max(1, itemCount);
+
+        if (!hasInitialPosition) {
+          scroller.scrollTop = loopAnchor - scroller.clientHeight / 2;
+          hasInitialPosition = true;
+          syncFromScroll();
+          renderedProgress = targetProgress;
+          applyWheel(renderedProgress);
+          applyWheelSelection(renderedProgress);
+          schedulePreview();
+          scheduleSettle();
+          return;
+        }
+
+        syncFromScroll();
+        scheduleSettle();
+      });
+    };
+
+    const requestMeasure = () => {
+      if (!measureFrame) {
+        measureFrame = window.requestAnimationFrame(measure);
+      }
+    };
+
+    const onFocusIn = (event: FocusEvent) => {
+      if (!enabled) return;
+      const target = event.target as HTMLElement | null;
+      const entry = target?.closest<HTMLElement>("[data-lab-entry]");
+      if (!entry) return;
+
+      const index = entries.indexOf(entry);
+      if (index < 0 || centers[index] === undefined) return;
+
+      scroller.scrollTo({
+        top: centers[index] - scroller.clientHeight / 2,
+        behavior: reduceMotion.matches ? "auto" : "smooth",
+      });
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!enabled || !wheelQuery.matches) return;
+      event.preventDefault();
+      pausePreview();
+      scheduleInputResume();
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? averageStep
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? scroller.clientHeight
+            : 1;
+      const delta =
+        Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+          ? event.deltaY
+          : event.deltaX;
+      scroller.scrollTop += delta * unit;
+      scheduleSettle();
+    };
+
+    const onScrollerWheel = () => {
+      pausePreview();
+      scheduleInputResume();
+      scheduleSettle();
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!enabled || !wheelQuery.matches || event.button !== 0) return;
+      pausePreview();
+      dragPointerId = event.pointerId;
+      dragStartY = event.clientY;
+      dragStartScrollTop = scroller.scrollTop;
+      didDrag = false;
+      wheel.setPointerCapture(event.pointerId);
+      wheel.classList.add("is-dragging");
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== dragPointerId) return;
+      const delta = dragStartY - event.clientY;
+      if (Math.abs(delta) > 4) {
+        didDrag = true;
+        suppressCardClick = true;
+      }
+      if (!didDrag) return;
+      event.preventDefault();
+      scroller.scrollTop = dragStartScrollTop + delta * 1.35;
+    };
+
+    const finishPointerDrag = (event: PointerEvent) => {
+      if (event.pointerId !== dragPointerId) return;
+      if (wheel.hasPointerCapture(event.pointerId)) {
+        wheel.releasePointerCapture(event.pointerId);
+      }
+      dragPointerId = -1;
+      wheel.classList.remove("is-dragging");
+      scheduleSettle();
+      if (didDrag) {
+        window.setTimeout(() => {
+          suppressCardClick = false;
+        }, 0);
+      }
+    };
+
+    const onCardClick = (event: MouseEvent) => {
+      const card = event.currentTarget as HTMLAnchorElement;
+      const index = Number(card.dataset.index);
+
+      if (suppressCardClick) {
+        event.preventDefault();
+        return;
+      }
+      if (index !== activeIndex) {
+        event.preventDefault();
+        scrollToIndex(index);
+      }
+    };
+
+    const onWheelKeyDown = (event: KeyboardEvent) => {
+      if (!enabled || !wheelQuery.matches) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      event.preventDefault();
+      scrollToIndex(activeIndex + (event.key === "ArrowDown" ? 1 : -1));
+    };
+
+    scroller.addEventListener("scroll", requestScrollSync, { passive: true });
+    scroller.addEventListener("wheel", onScrollerWheel, { passive: true });
+    scroller.addEventListener("focusin", onFocusIn);
+    wheel.addEventListener("wheel", onWheel, { passive: false });
+    wheel.addEventListener("pointerdown", onPointerDown);
+    wheel.addEventListener("pointermove", onPointerMove);
+    wheel.addEventListener("pointerup", finishPointerDrag);
+    wheel.addEventListener("pointercancel", finishPointerDrag);
+    wheel.addEventListener("keydown", onWheelKeyDown);
+    cards.forEach((card) => card.addEventListener("click", onCardClick));
+    videos.forEach((video) => {
+      video.addEventListener("playing", onVideoPlaying);
+      video.addEventListener("error", onVideoError);
+    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    layoutQuery.addEventListener("change", requestMeasure);
+    wheelQuery.addEventListener("change", requestMeasure);
+    reduceMotion.addEventListener("change", onMotionPreferenceChange);
+
+    const resizeObserver = new ResizeObserver(requestMeasure);
+    resizeObserver.observe(scroller);
+    resizeObserver.observe(list);
+    requestMeasure();
+
+    labWindow.__labExperienceCleanup = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      if (measureFrame) window.cancelAnimationFrame(measureFrame);
+      if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
+      if (settleTimer) window.clearTimeout(settleTimer);
+      if (previewTimer) window.clearTimeout(previewTimer);
+      if (inputResumeTimer) window.clearTimeout(inputResumeTimer);
+      inputResumeTimer = 0;
+      previewTimer = 0;
+      deactivatePreview();
+      resizeObserver.disconnect();
+      scroller.removeEventListener("scroll", requestScrollSync);
+      scroller.removeEventListener("wheel", onScrollerWheel);
+      scroller.removeEventListener("focusin", onFocusIn);
+      wheel.removeEventListener("wheel", onWheel);
+      wheel.removeEventListener("pointerdown", onPointerDown);
+      wheel.removeEventListener("pointermove", onPointerMove);
+      wheel.removeEventListener("pointerup", finishPointerDrag);
+      wheel.removeEventListener("pointercancel", finishPointerDrag);
+      wheel.removeEventListener("keydown", onWheelKeyDown);
+      cards.forEach((card) => card.removeEventListener("click", onCardClick));
+      videos.forEach((video) => {
+        video.removeEventListener("playing", onVideoPlaying);
+        video.removeEventListener("error", onVideoError);
+        unloadVideo(video);
+      });
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      layoutQuery.removeEventListener("change", requestMeasure);
+      wheelQuery.removeEventListener("change", requestMeasure);
+      reduceMotion.removeEventListener("change", onMotionPreferenceChange);
+    };
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLabExperience, {
+      once: true,
+    });
+  } else {
+    initLabExperience();
+  }
+
+  document.addEventListener("astro:page-load", initLabExperience);
+  document.addEventListener("astro:before-swap", () => {
+    labWindow.__labExperienceCleanup?.();
+  });
+</script>

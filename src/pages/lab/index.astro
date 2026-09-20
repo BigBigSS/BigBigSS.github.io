@@ -1,5 +1,6 @@
 ---
 import { getCollection } from "astro:content";
+import LabPreviewWheel from "../../components/LabPreviewWheel.astro";
 import { site } from "../../data/site";
 import { sortByDateDesc } from "../../lib/content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
@@ -17,8 +18,7 @@ const formatLabDate = (d: Date) =>
     .format(d)
     .replaceAll("-", ".");
 
-const totalCount = String(labs.length).padStart(2, "0");
-const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
+const loopCycles = [-1, 0, 1] as const;
 ---
 
 <BaseLayout
@@ -27,52 +27,62 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
 >
   <section class="lab-page">
     <header class="lab-masthead">
-      <div class="lab-masthead__bar">
-        <span>LAB 2</span>
-        <span class="lab-masthead__dot" aria-hidden="true">·</span>
-        <span>{totalCount} EXPERIMENTS</span>
-        <span class="lab-masthead__dot" aria-hidden="true">·</span>
-        <span>{year}</span>
-        <span class="lab-masthead__byline">/ {site.handle}</span>
-      </div>
-
       <h1 class="lab-title">实验室</h1>
-      <p class="lab-intro">
-        交互动效收藏馆。每个条目点进去都是一个跑在你浏览器里的现场演示，附一份拆解笔记。
-      </p>
     </header>
 
-    <ol class="lab-index" role="list">
-      {
-        labs.map((lab, idx) => (
-          <li>
-            <a class="entry" href={`/lab/${lab.id}`}>
-              <span class="entry__no" aria-hidden="true">
-                №{String(idx + 1).padStart(2, "0")}
-              </span>
-              <div class="entry__main">
-                <h2 class="entry__title">{lab.data.title}</h2>
-                {lab.data.tags.length > 0 && (
-                  <ul class="entry__tags">
-                    {lab.data.tags.map((tag) => (
-                      <li>{tag}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <span class="entry__meta">
-                <span>{formatLabDate(lab.data.date)}</span>
-                <span class="entry__sep" aria-hidden="true">/</span>
-                <span>LIVE DEMO</span>
-              </span>
-              <span class="entry__arrow" aria-hidden="true">→</span>
-            </a>
-          </li>
-        ))
-      }
+    <div class="lab-stage" data-lab-stage>
+      <div
+        class="lab-list-viewport"
+        data-lab-scroll
+        tabindex="0"
+        aria-label="实验项目列表，可上下滚动"
+      >
+        <ol class="lab-index" role="list" data-lab-list>
+          {
+            loopCycles.flatMap((cycle) =>
+              labs.map((lab, idx) => (
+                <li
+                  data-lab-entry
+                  data-index={idx}
+                  data-cycle={cycle}
+                  aria-hidden={cycle === 0 ? undefined : "true"}
+                >
+                  <a
+                    class="entry"
+                    href={`/lab/${lab.id}`}
+                    tabindex={cycle === 0 ? undefined : -1}
+                  >
+                    <span class="entry__no" aria-hidden="true">
+                      №{String(idx + 1).padStart(2, "0")}
+                    </span>
+                    <div class="entry__main">
+                      <h2 class="entry__title">{lab.data.title}</h2>
+                      {lab.data.tags.length > 0 && (
+                        <ul class="entry__tags">
+                          {lab.data.tags.map((tag) => (
+                            <li>{tag}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <span class="entry__meta">
+                      <span>{formatLabDate(lab.data.date)}</span>
+                      <span class="entry__sep" aria-hidden="true">/</span>
+                      <span>LIVE DEMO</span>
+                    </span>
+                    <span class="entry__arrow" aria-hidden="true">→</span>
+                  </a>
+                </li>
+              )),
+            )
+          }
 
-      {labs.length === 0 && <li class="lab-empty">No experiments yet.</li>}
-    </ol>
+          {labs.length === 0 && <li class="lab-empty">No experiments yet.</li>}
+        </ol>
+      </div>
+
+      <LabPreviewWheel labs={labs} />
+    </div>
   </section>
 </BaseLayout>
 
@@ -80,74 +90,72 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
   .lab-page {
     --lab-line: color-mix(in srgb, var(--text-primary) 14%, transparent);
     --lab-row-hover: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+    --lab-stage-shift: clamp(76px, 7vw, 112px);
 
     width: min(880px, calc(100vw - 48px));
     margin-inline: auto;
     padding: clamp(72px, 10vw, 130px) 0 clamp(80px, 12vw, 140px);
   }
 
-  /* =================== Masthead =================== */
-
   .lab-masthead {
-    display: grid;
-  }
-
-  .lab-masthead__bar {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
-    padding: 14px 0;
-    border-top: 1px solid var(--lab-line);
-    border-bottom: 1px solid var(--lab-line);
-    color: var(--text-tertiary);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-  }
-
-  .lab-masthead__dot {
-    opacity: 0.5;
-  }
-
-  .lab-masthead__byline {
-    margin-left: auto;
-    color: var(--text-secondary);
-    letter-spacing: 0.16em;
   }
 
   .lab-title {
-    margin: clamp(36px, 6vw, 56px) 0 14px;
-    color: var(--text-primary);
-    font-size: clamp(2.4rem, 5.4vw, 4rem);
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.04em;
-  }
-
-  .lab-intro {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
     margin: 0;
-    max-width: 44ch;
-    color: var(--text-secondary);
-    font-size: 1rem;
-    line-height: 1.7;
+    color: var(--text-tertiary);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
   }
 
-  /* =================== Index =================== */
+  .lab-title::before {
+    width: 20px;
+    height: 1px;
+    background: currentColor;
+    content: "";
+    opacity: 0.55;
+  }
+
+  .lab-stage {
+    position: relative;
+    width: 100%;
+    margin-top: clamp(30px, 5vw, 44px);
+  }
+
+  .lab-list-viewport {
+    width: 100%;
+  }
+
+  .lab-list-viewport:focus-visible {
+    outline: 1px solid
+      color-mix(in srgb, var(--text-primary) 25%, transparent);
+    outline-offset: 8px;
+  }
 
   .lab-index {
     display: flex;
     flex-direction: column;
-    margin: clamp(48px, 7vw, 72px) 0 0;
+    margin: 0;
     padding: 0;
     list-style: none;
     border-top: 1px solid var(--lab-line);
   }
 
   .lab-index > li {
-    display: contents;
+    display: block;
+  }
+
+  .lab-index > [data-cycle="-1"],
+  .lab-index > [data-cycle="1"] {
+    display: none;
   }
 
   .entry {
@@ -164,17 +172,18 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
   }
 
   .entry::after {
-    content: "";
     position: absolute;
     inset: 0;
+    z-index: -1;
     background: transparent;
+    content: "";
     pointer-events: none;
     transition: background-color 0.4s var(--ease-cinema);
-    z-index: -1;
   }
 
   .entry:hover::after,
-  .entry:focus-visible::after {
+  .entry:focus-visible::after,
+  [data-lab-entry].is-active .entry::after {
     background: var(--lab-row-hover);
   }
 
@@ -194,20 +203,22 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
   }
 
   .entry:hover .entry__no,
-  .entry:focus-visible .entry__no {
+  .entry:focus-visible .entry__no,
+  [data-lab-entry].is-active .entry__no {
     color: var(--text-primary);
   }
 
   .entry__main {
-    grid-area: main;
     display: grid;
+    grid-area: main;
     gap: 10px;
     min-width: 0;
     transition: transform 0.4s var(--ease-cinema);
   }
 
   .entry:hover .entry__main,
-  .entry:focus-visible .entry__main {
+  .entry:focus-visible .entry__main,
+  [data-lab-entry].is-active .entry__main {
     transform: translateX(6px);
   }
 
@@ -239,10 +250,10 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
   }
 
   .entry__meta {
-    grid-area: meta;
     display: inline-flex;
-    align-items: baseline;
+    grid-area: meta;
     gap: 8px;
+    align-items: baseline;
     color: var(--text-tertiary);
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 0.78rem;
@@ -269,7 +280,8 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
   }
 
   .entry:hover .entry__arrow,
-  .entry:focus-visible .entry__arrow {
+  .entry:focus-visible .entry__arrow,
+  [data-lab-entry].is-active .entry__arrow {
     color: var(--text-primary);
     transform: translateX(8px);
   }
@@ -284,13 +296,90 @@ const year = labs[0]?.data.date.getFullYear() ?? new Date().getFullYear();
     text-transform: uppercase;
   }
 
-  @media (max-width: 720px) {
-    .lab-masthead__byline {
-      width: 100%;
-      margin-left: 0;
-      padding-top: 6px;
+  @media (min-width: 1024px) and (min-height: 700px) {
+    :global(html:has(.lab-page)),
+    :global(body:has(.lab-page)) {
+      height: 100%;
+      overflow: hidden;
     }
 
+    :global(body:has(.lab-page) > main) {
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    :global(body:has(.lab-page) > .footer) {
+      display: none;
+    }
+
+    .lab-page {
+      height: 100dvh;
+      padding-block: clamp(88px, 9vh, 102px)
+        clamp(18px, 2.4vh, 28px);
+    }
+
+    .lab-masthead {
+      position: fixed;
+      top: clamp(102px, 10.5vh, 122px);
+      left: max(24px, calc(50vw - 660px));
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .lab-stage {
+      height: 100%;
+      min-height: 0;
+      margin-top: 0;
+    }
+
+    .lab-stage::before,
+    .lab-stage::after {
+      position: absolute;
+      right: 0;
+      left: 0;
+      z-index: 10;
+      height: clamp(42px, 6vh, 64px);
+      content: "";
+      pointer-events: none;
+    }
+
+    .lab-stage::before {
+      top: 0;
+      background: linear-gradient(to bottom, var(--bg), transparent);
+    }
+
+    .lab-stage::after {
+      bottom: 0;
+      background: linear-gradient(to top, var(--bg), transparent);
+    }
+
+    .lab-list-viewport {
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      contain: layout paint style;
+      overflow-anchor: none;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      touch-action: pan-y;
+    }
+
+    .lab-list-viewport::-webkit-scrollbar {
+      display: none;
+    }
+
+    .lab-index > [data-cycle] {
+      display: block;
+    }
+  }
+
+  @media (min-width: 1360px) {
+    .lab-stage {
+      transform: translateX(calc(-1 * var(--lab-stage-shift)));
+    }
+  }
+
+  @media (max-width: 720px) {
     .entry {
       grid-template-columns: 44px minmax(0, 1fr) 20px;
       grid-template-areas:
