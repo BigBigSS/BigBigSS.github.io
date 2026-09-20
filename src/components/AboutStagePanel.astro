@@ -56,6 +56,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
 </section>
 
 <script>
+  const initAboutStage = () => {
   const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isMobile = coarsePointer || window.innerWidth < 768;
@@ -141,7 +142,9 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     const panel = stage.querySelector<HTMLElement>("[data-about-panel]");
     const lens = stage.querySelector<HTMLElement>("[data-about-lens]");
     const lensRoot = lens?.parentElement as HTMLElement | null;
-    if (!card || !trigger) return;
+    if (!card || !trigger || stage.dataset.initialized === "1") return;
+    stage.dataset.initialized = "1";
+    const events = new AbortController();
     const trackingRoot = stage.closest<HTMLElement>(".about-stage") ?? stage;
     // 诗词池：客户端只拉一次，之后每次切换在本地随机挑（避免与上一首重复），循环不停。
     const introLineKey = Array.from(
@@ -187,14 +190,14 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
 
     window.addEventListener("theme-change", () => {
       showNextPoem();
-    });
+    }, { signal: events.signal });
 
     window.addEventListener("resize", () => {
       const lines = Array.from(trigger.querySelectorAll<HTMLElement>("[data-poetry-line]"))
         .map((item) => item.textContent || "")
         .filter(Boolean);
       if (lines.length) syncPoemFontSize(stage, trigger, lines);
-    });
+    }, { signal: events.signal });
 
     const revealStage = () => {
       stage.classList.add("is-active");
@@ -290,9 +293,10 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
       trackingRoot.addEventListener("pointercancel", onLeave);
     }
 
-    window.addEventListener(
-      "beforeunload",
+    document.addEventListener(
+      "astro:before-swap",
       () => {
+        events.abort();
         if (frame) window.cancelAnimationFrame(frame);
         trigger.removeEventListener("mouseover", onTriggerOver as EventListener);
         stage.removeEventListener("mouseleave", hideStage);
@@ -307,6 +311,9 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
       { once: true },
     );
   });
+  };
+  initAboutStage();
+  document.addEventListener("astro:page-load", initAboutStage);
 </script>
 
 <style>

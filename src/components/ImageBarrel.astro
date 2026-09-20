@@ -1216,7 +1216,10 @@ const galleryItems: BarrelGalleryItem[] = items.length
     window.addEventListener("page-scroll-end", onScrollEnd as EventListener);
 
     const cleanup = () => {
+      if (disposed) return;
       disposed = true;
+      window.removeEventListener("beforeunload", cleanup);
+      document.removeEventListener("astro:before-swap", cleanup);
       stopAnimation();
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
@@ -1246,31 +1249,40 @@ const galleryItems: BarrelGalleryItem[] = items.length
       renderer.dispose();
     };
     window.addEventListener("beforeunload", cleanup, { once: true });
+    document.addEventListener("astro:before-swap", cleanup, { once: true });
   };
 
   const lazyBoot = (mount: HTMLElement) => {
     let hasStarted = false;
+    let cancelled = false;
     let bootObserver: IntersectionObserver | undefined;
     const sectionRoot = mount.closest<HTMLElement>(".barrel3d") ?? mount;
 
     const start = async () => {
-      if (hasStarted) return;
+      if (hasStarted || cancelled) return;
       hasStarted = true;
       bootObserver?.disconnect();
       window.removeEventListener("scroll", maybeStart);
       window.removeEventListener("resize", maybeStart);
       const THREE = await import("three");
-      boot(mount, THREE);
+      if (!cancelled && mount.isConnected) boot(mount, THREE);
     };
 
     const maybeStart = () => {
-      if (hasStarted) return;
+      if (hasStarted || cancelled) return;
       const rect = sectionRoot.getBoundingClientRect();
       const preloadDistance = 320;
       if (rect.top <= window.innerHeight + preloadDistance && rect.bottom >= -preloadDistance) {
         void start();
       }
     };
+
+    document.addEventListener("astro:before-swap", () => {
+      cancelled = true;
+      bootObserver?.disconnect();
+      window.removeEventListener("scroll", maybeStart);
+      window.removeEventListener("resize", maybeStart);
+    }, { once: true });
 
     if ("IntersectionObserver" in window) {
       bootObserver = new IntersectionObserver(
@@ -1290,11 +1302,15 @@ const galleryItems: BarrelGalleryItem[] = items.length
     }
   };
 
+  const initImageBarrels = () => {
   document.querySelectorAll<HTMLElement>("[data-barrel3d]").forEach((el) => {
     if (el.dataset.booted === "1") return;
     el.dataset.booted = "1";
     lazyBoot(el);
   });
+  };
+  initImageBarrels();
+  document.addEventListener("astro:page-load", initImageBarrels);
 </script>
 
 <style>

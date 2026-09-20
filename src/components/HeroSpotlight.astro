@@ -71,11 +71,15 @@ import { site } from "../data/site";
 </section>
 
 <script>
+  const initHero = () => {
   const heroRoot = document.querySelector<HTMLElement>("[data-hero-root]");
   const mouseScene = document.querySelector<HTMLElement>("[data-mouse-scene]");
   const waveScene = document.querySelector<HTMLElement>("[data-wave-scene]");
 
   if (heroRoot && mouseScene && waveScene) {
+    if (heroRoot.dataset.initialized === "1") return;
+    heroRoot.dataset.initialized = "1";
+    const events = new AbortController();
     const hero = heroRoot;
     const scene = mouseScene;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -92,6 +96,8 @@ import { site } from "../data/site";
     let isWaving = false;
     let sweepTimer = 0;
     let firstSweepScheduled = false;
+    let firstSweepTimer = 0;
+    let observer: IntersectionObserver | undefined;
 
     let animationId = 0;
     let isRunning = false;
@@ -108,7 +114,7 @@ import { site } from "../data/site";
     const scheduleFirstSweep = () => {
       if (firstSweepScheduled || reducedMotion) return;
       firstSweepScheduled = true;
-      window.setTimeout(triggerSweep, 1500);
+      firstSweepTimer = window.setTimeout(triggerSweep, 1500);
     };
 
     const startSweepTimer = () => {
@@ -135,8 +141,8 @@ import { site } from "../data/site";
       startAnimation();
     };
 
-    hero.addEventListener("pointermove", onPointerMove);
-    hero.addEventListener("pointerleave", onPointerLeave);
+    hero.addEventListener("pointermove", onPointerMove, { signal: events.signal });
+    hero.addEventListener("pointerleave", onPointerLeave, { signal: events.signal });
 
     function animate() {
       if (!isRunning) return;
@@ -198,7 +204,7 @@ import { site } from "../data/site";
     }
 
     if ("IntersectionObserver" in window) {
-      const observer = new IntersectionObserver(
+      observer = new IntersectionObserver(
         (entries) => {
           const visible = entries.some((entry) => entry.isIntersecting);
           inViewport = visible;
@@ -229,8 +235,18 @@ import { site } from "../data/site";
         startSweepTimer();
         startAnimation();
       }
-    });
+    }, { signal: events.signal });
+    document.addEventListener("astro:before-swap", () => {
+      events.abort();
+      observer?.disconnect();
+      stopAnimation();
+      stopSweepTimer();
+      window.clearTimeout(firstSweepTimer);
+    }, { once: true });
   }
+  };
+  initHero();
+  document.addEventListener("astro:page-load", initHero);
 </script>
 
 <style is:global>
