@@ -1,8 +1,10 @@
 ---
+import MobileHeroArt from "./MobileHeroArt.astro";
 import { site } from "../data/site";
 ---
 
 <section class="hero" data-hero-root>
+  <MobileHeroArt />
   <div class="noise-overlay" aria-hidden="true"></div>
   <div class="ambient-glow" aria-hidden="true"></div>
 
@@ -34,6 +36,7 @@ import { site } from "../data/site";
     <div class="hero__content">
       <div class="hero__tag ui-glass ui-text-main">DIGITAL ATELIER // 01</div>
 
+      <div class="hero-mobile-eyebrow">A MORE MEANINGFUL TOMORROW</div>
       <h1 class="hero__title ui-text-main">
         Between Code<br />
         and <span class="ui-gradient-text">Passing Light</span>
@@ -50,11 +53,11 @@ import { site } from "../data/site";
           rel="noreferrer"
           class="hero__chip ui-glass ui-text-main"
         >
-          <span>GITHUB</span>
+          <svg class="hero-mobile-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 1.71 2.62 1.22 3.26.93.1-.72.39-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.57 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.99 0 0 .95-.3 3.08 1.16a10.7 10.7 0 0 1 5.61 0c2.13-1.45 3.07-1.16 3.07-1.16.61 1.56.23 2.71.12 2.99.72.79 1.15 1.8 1.15 3.03 0 4.34-2.64 5.28-5.15 5.56.4.35.76 1.03.76 2.08v3.1c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg><span>GITHUB</span>
         </a>
 
         <div class="hero__chip hero__chip--pop ui-glass ui-text-main">
-          <span>WECHAT</span>
+          <svg class="hero-mobile-icon" aria-hidden="true" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2C4 2 1 5 1 8.5c0 2 1.2 4 3.2 5.2L3.5 17l3.6-1.8L9 15c4.5 0 8-2.9 8-6.5S13.5 2 9 2Z"/><path fill="currentColor" stroke="#101115" stroke-width=".8" d="M16 9c-4 0-7 2.6-7 5.7s3 5.8 7 5.8l1.8-.2 3 1.5-.5-2.8c1.7-1 2.7-2.6 2.7-4.3S20 9 16 9Z"/><path stroke="#101115" stroke-width="1.7" stroke-linecap="round" d="M6 7h.01M11 7h.01M13.5 13.5h.01M18 13.5h.01"/></svg><span>WECHAT</span>
           <div class="hero__popover ui-glass">暂不展示</div>
         </div>
 
@@ -63,11 +66,12 @@ import { site } from "../data/site";
           class="hero__chip ui-glass ui-text-main"
           data-email-copy={site.email}
         >
-          <span>CONTACT</span>
+          <svg class="hero-mobile-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg><span>CONTACT</span>
         </button>
       </div>
     </div>
   </div>
+  <div class="hero-mobile-colophon" aria-hidden="true"><span>CODE<br />MEETS<br />A BRIGHTER YOU</span><span>— / 2024</span></div>
 </section>
 
 <script>
@@ -250,6 +254,7 @@ import { site } from "../data/site";
 </script>
 
 <style is:global>
+  .hero-mobile-icon, .hero-mobile-eyebrow, .hero-mobile-colophon { display: none; }
   .hero {
     position: relative;
     width: 100%;

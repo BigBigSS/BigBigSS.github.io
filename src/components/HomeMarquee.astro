@@ -9,7 +9,13 @@ const rowTwo = capabilities.rowTwo;
   <div class="page-shell">
     <div class="home-marquee__header">
       <p class="home-marquee__eyebrow">05 / SYSTEM CAPABILITIES</p>
-      <span class="home-marquee__label">Endless Loop</span>
+      <div class="home-marquee__controls">
+        <span class="home-marquee__label">Endless Loop</span>
+        <button class="home-marquee__toggle" type="button" aria-label="暂停滚动" aria-pressed="false">
+          <svg class="home-marquee__pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" /></svg>
+          <svg class="home-marquee__play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 8 6-8 6Z" /></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -33,26 +39,103 @@ const rowTwo = capabilities.rowTwo;
 </section>
 
 <script>
+  let cleanupMarquee: (() => void) | undefined;
+
   const setupMarquee = () => {
-    if (!("IntersectionObserver" in window)) return;
+    cleanupMarquee?.();
     const marquees = document.querySelectorAll<HTMLElement>(".home-marquee");
     if (!marquees.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          (entry.target as HTMLElement).classList.toggle("is-paused", !entry.isIntersecting);
-        });
-      },
-      { rootMargin: "120px 0px" },
-    );
+    const dispose: Array<() => void> = [];
+
     marquees.forEach((marquee) => {
-      if (marquee.dataset.marqueeBound === "1") return;
-      marquee.dataset.marqueeBound = "1";
-      observer.observe(marquee);
+      const mobile = window.matchMedia("(max-width: 768px)");
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const events = new AbortController();
+      const toggle = marquee.querySelector<HTMLButtonElement>(".home-marquee__toggle");
+      const lanes = Array.from(marquee.querySelectorAll<HTMLElement>(".home-marquee__lane"));
+      let frame = 0;
+      let lastTime = 0;
+      let visible = !("IntersectionObserver" in window);
+      let userPaused = false;
+      let distances = lanes.map(() => 0);
+      let positions = lanes.map(() => 0);
+
+      const stop = () => {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        lastTime = 0;
+      };
+
+      const animate = (time: number) => {
+        const elapsed = lastTime ? Math.min(time - lastTime, 64) / 1000 : 0;
+        lastTime = time;
+        lanes.forEach((lane, index) => {
+          const distance = distances[index];
+          if (!distance) return;
+          const next = positions[index] + elapsed * (index === 0 ? 18 : -15);
+          positions[index] = ((next % distance) + distance) % distance;
+          lane.scrollLeft = positions[index];
+        });
+        frame = requestAnimationFrame(animate);
+      };
+
+      const sync = () => {
+        stop();
+        const inactive = !visible || document.hidden;
+        marquee.classList.toggle("is-paused", inactive);
+        marquee.classList.toggle("is-user-paused", userPaused);
+        toggle?.setAttribute("aria-pressed", String(userPaused));
+        toggle?.setAttribute("aria-label", userPaused ? "播放滚动" : "暂停滚动");
+        if (mobile.matches && !reducedMotion.matches && !inactive && !userPaused) {
+          positions = lanes.map((lane) => lane.scrollLeft);
+          frame = requestAnimationFrame(animate);
+        }
+      };
+
+      const measure = () => {
+        distances = lanes.map((lane) => lane.querySelector<HTMLElement>(".home-marquee__track")?.getBoundingClientRect().width || 0);
+      };
+
+      const observer = "IntersectionObserver" in window
+        ? new IntersectionObserver((entries) => {
+            visible = entries.some((entry) => entry.isIntersecting);
+            sync();
+          }, { rootMargin: "80px 0px" })
+        : undefined;
+      observer?.observe(marquee);
+
+      const resizeObserver = new ResizeObserver(measure);
+      lanes.forEach((lane) => {
+        const track = lane.querySelector<HTMLElement>(".home-marquee__track");
+        if (track) resizeObserver.observe(track);
+      });
+
+      toggle?.addEventListener("click", () => {
+        userPaused = !userPaused;
+        sync();
+      }, { signal: events.signal });
+      mobile.addEventListener("change", () => {
+        lanes.forEach((lane) => { lane.scrollLeft = 0; });
+        measure();
+        sync();
+      }, { signal: events.signal });
+      reducedMotion.addEventListener("change", sync, { signal: events.signal });
+      document.addEventListener("visibilitychange", sync, { signal: events.signal });
+      measure();
+      sync();
+      dispose.push(() => {
+        stop();
+        observer?.disconnect();
+        resizeObserver.disconnect();
+        events.abort();
+      });
     });
+
+    cleanupMarquee = () => dispose.forEach((cleanup) => cleanup());
   };
 
   document.addEventListener("astro:page-load", setupMarquee);
+  document.addEventListener("astro:before-swap", () => cleanupMarquee?.());
   setupMarquee();
 </script>
 
@@ -87,6 +170,15 @@ const rowTwo = capabilities.rowTwo;
     font-size: 0.76rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
+  }
+
+  .home-marquee__controls {
+    display: flex;
+    align-items: center;
+  }
+
+  .home-marquee__toggle {
+    display: none;
   }
 
   .home-marquee__lane {
@@ -163,6 +255,124 @@ const rowTwo = capabilities.rowTwo;
     .home-marquee__header {
       flex-direction: column;
       align-items: flex-start;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .home-marquee {
+      --marquee-mask: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+      padding-block: 32px 36px;
+    }
+
+    :global(body.light-mode) .home-marquee {
+      --marquee-mask: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+    }
+
+    .home-marquee .page-shell {
+      width: calc(100% - 48px);
+      padding-inline: 0;
+    }
+
+    .home-marquee__header {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .home-marquee__eyebrow {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+    }
+
+    .home-marquee__controls {
+      gap: 8px;
+    }
+
+    .home-marquee__label {
+      font-size: 8px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .home-marquee__toggle {
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      padding: 12px;
+      border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+      border-radius: 50%;
+      color: var(--text-secondary);
+      background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .home-marquee__toggle svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .home-marquee__toggle:focus-visible {
+      outline: 2px solid var(--text-secondary);
+      outline-offset: 3px;
+    }
+
+    .home-marquee__play-icon,
+    .is-user-paused .home-marquee__pause-icon {
+      display: none;
+    }
+
+    .is-user-paused .home-marquee__play-icon {
+      display: block;
+    }
+
+    .home-marquee__lane {
+      overflow-x: auto;
+      scrollbar-width: none;
+      overscroll-behavior-x: contain;
+    }
+
+    .home-marquee__lane::-webkit-scrollbar {
+      display: none;
+    }
+
+    .home-marquee__lane + .home-marquee__lane {
+      margin-top: 14px;
+    }
+
+    .home-marquee__track {
+      min-width: max-content;
+      gap: 24px;
+      padding-right: 24px;
+      animation: none;
+    }
+
+    .home-marquee__item {
+      font-size: clamp(28px, 7.5vw, 32px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.035em;
+    }
+  }
+
+  @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+    .home-marquee__toggle,
+    .home-marquee__track[aria-hidden="true"] {
+      display: none;
+    }
+
+    .home-marquee__lane {
+      padding-inline: 24px;
+      mask-image: none;
+      -webkit-mask-image: none;
     }
   }
 </style>

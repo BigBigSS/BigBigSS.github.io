@@ -71,6 +71,16 @@ const isActive = (href: string) => {
   if (nav && indicator) {
     navWindow.__navScrollCleanup?.();
 
+    const mobileQuery = window.matchMedia("(max-width: 768px)");
+    const themeButton = document.getElementById("theme-btn");
+    const syncThemePlacement = () => {
+      if (!themeButton) return;
+      if (mobileQuery.matches) nav.querySelector(".nav-actions")?.append(themeButton);
+      else document.body.insertBefore(themeButton, document.getElementById("content"));
+      initIndicator();
+    };
+    mobileQuery.addEventListener("change", syncThemePlacement);
+
     // 1. Scroll logic
     let frameId = 0;
     let lastScrolled = false;
@@ -124,6 +134,8 @@ const isActive = (href: string) => {
         }
     };
     
+    syncThemePlacement();
+
     // Allow fonts to load or UI to settle
     setTimeout(initIndicator, 100);
     // Also init immediately if possible
@@ -175,12 +187,14 @@ const isActive = (href: string) => {
       };
 
       el.addEventListener("mouseenter", () => {
+        if (mobileQuery.matches) return;
         bounds = el.getBoundingClientRect();
         isHovered = true;
         if (!runId) runId = requestAnimationFrame(animate);
       });
 
       el.addEventListener("mousemove", (e) => {
+        if (mobileQuery.matches) return;
         // Recalculate bounds occasionally or assume mostly static for perf
         // It's mostly fine unless window resizes heavily while hovering
         const x = e.clientX - bounds.left - bounds.width / 2;
@@ -203,6 +217,7 @@ const isActive = (href: string) => {
         frameId = 0;
       }
       window.removeEventListener("scroll", requestSyncScroll);
+      mobileQuery.removeEventListener("change", syncThemePlacement);
     };
   }
   };

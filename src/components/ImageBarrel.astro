@@ -1,5 +1,6 @@
 ---
 import type { GalleryItem } from "../lib/gallery";
+import MobilePhotoJournal from "./MobilePhotoJournal.astro";
 
 interface Props {
   items: GalleryItem[];
@@ -57,6 +58,7 @@ const galleryItems: BarrelGalleryItem[] = items.length
 
 <section class="barrel3d" id="gallery">
   <p class="barrel3d__eyebrow">06 / MY LIFE</p>
+  <MobilePhotoJournal />
   <div class="barrel3d__stage" data-barrel3d data-items={JSON.stringify(galleryItems)}></div>
   
   <div class="barrel3d__journal-overlay" data-barrel3d-journal-overlay>
@@ -1250,12 +1252,14 @@ const galleryItems: BarrelGalleryItem[] = items.length
     };
     window.addEventListener("beforeunload", cleanup, { once: true });
     document.addEventListener("astro:before-swap", cleanup, { once: true });
+    return cleanup;
   };
 
   const lazyBoot = (mount: HTMLElement) => {
     let hasStarted = false;
     let cancelled = false;
     let bootObserver: IntersectionObserver | undefined;
+    let disposeScene: (() => void) | undefined;
     const sectionRoot = mount.closest<HTMLElement>(".barrel3d") ?? mount;
 
     const start = async () => {
@@ -1265,7 +1269,7 @@ const galleryItems: BarrelGalleryItem[] = items.length
       window.removeEventListener("scroll", maybeStart);
       window.removeEventListener("resize", maybeStart);
       const THREE = await import("three");
-      if (!cancelled && mount.isConnected) boot(mount, THREE);
+      if (!cancelled && mount.isConnected) disposeScene = boot(mount, THREE);
     };
 
     const maybeStart = () => {
@@ -1277,12 +1281,16 @@ const galleryItems: BarrelGalleryItem[] = items.length
       }
     };
 
-    document.addEventListener("astro:before-swap", () => {
+    const cleanup = () => {
       cancelled = true;
       bootObserver?.disconnect();
       window.removeEventListener("scroll", maybeStart);
       window.removeEventListener("resize", maybeStart);
-    }, { once: true });
+      document.removeEventListener("astro:before-swap", cleanup);
+      disposeScene?.();
+      sectionRoot.querySelector(".barrel3d__journal-overlay")?.classList.remove("active");
+    };
+    document.addEventListener("astro:before-swap", cleanup, { once: true });
 
     if ("IntersectionObserver" in window) {
       bootObserver = new IntersectionObserver(
@@ -1300,13 +1308,29 @@ const galleryItems: BarrelGalleryItem[] = items.length
     } else {
       void start();
     }
+    return cleanup;
   };
 
   const initImageBarrels = () => {
   document.querySelectorAll<HTMLElement>("[data-barrel3d]").forEach((el) => {
     if (el.dataset.booted === "1") return;
     el.dataset.booted = "1";
-    lazyBoot(el);
+    const mobile = window.matchMedia("(max-width: 768px)");
+    let stopDesktop: (() => void) | undefined;
+    const syncLayout = () => {
+      if (mobile.matches) {
+        stopDesktop?.();
+        stopDesktop = undefined;
+      } else if (!stopDesktop) {
+        stopDesktop = lazyBoot(el);
+      }
+    };
+    mobile.addEventListener("change", syncLayout);
+    syncLayout();
+    document.addEventListener("astro:before-swap", () => {
+      stopDesktop?.();
+      mobile.removeEventListener("change", syncLayout);
+    }, { once: true });
   });
   };
   initImageBarrels();
@@ -1513,5 +1537,18 @@ const galleryItems: BarrelGalleryItem[] = items.length
     .barrel3d {
       min-height: 680px;
     }
+  }
+  @media (max-width: 768px) {
+    .barrel3d {
+      width:100%; height:auto; min-height:0; margin:0;
+      padding:64px 24px 48px;
+      background:linear-gradient(180deg,transparent,var(--bg));
+      scroll-margin-top:100px;
+    }
+    .barrel3d__eyebrow {
+      position:static; margin:0 0 18px;
+      font-size:10px; letter-spacing:.16em;
+    }
+    .barrel3d__stage, .barrel3d__journal-overlay { display:none; }
   }
 </style>

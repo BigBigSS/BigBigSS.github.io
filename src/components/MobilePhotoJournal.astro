@@ -1,0 +1,101 @@
+<div class="mobile-journal" data-mobile-journal>
+  <header class="mobile-journal__heading">
+    <h2>MEMORY<br />JOURNAL</h2>
+    <span data-photo-total></span>
+  </header>
+
+  <div class="mobile-journal__frame" data-photo-frame role="region" aria-label="可左右拖动的旋转相册" aria-roledescription="旋转展列">
+    <div class="mobile-journal__atmosphere" aria-hidden="true"></div>
+    <div class="mobile-journal__distance" data-photo-distance aria-hidden="true">
+      {Array.from({ length: 35 }, () => (
+        <div class="mobile-journal__distant-photo">
+          <img alt="" decoding="async" draggable="false" />
+        </div>
+      ))}
+    </div>
+    <div class="mobile-journal__orbit" data-photo-orbit>
+      {Array.from({ length: 9 }, () => (
+        <button class="mobile-journal__photo" type="button" data-photo-open aria-label="查看照片" tabindex="-1" hidden>
+          <span class="mobile-journal__photo-surface">
+            <img data-photo-image alt="生活照片" decoding="async" draggable="false" />
+            <span class="mobile-journal__live" data-photo-live hidden>◎ LIVE</span>
+            <span class="mobile-journal__open-hint" aria-hidden="true">↗</span>
+          </span>
+        </button>
+      ))}
+    </div>
+    <span class="mobile-journal__loading" data-photo-loading>照片加载中</span>
+    <button class="mobile-journal__retry" type="button" data-photo-retry hidden>重新加载</button>
+  </div>
+
+  <span class="sr-only" role="status" data-photo-status></span>
+
+  <dialog class="mobile-journal__viewer" data-photo-viewer aria-label="照片预览，点击照片以外的区域关闭" tabindex="-1">
+    <div class="mobile-journal__viewer-veil" data-photo-viewer-veil aria-hidden="true"></div>
+    <div class="mobile-journal__viewer-media" data-photo-viewer-media>
+      <img data-photo-full alt="" />
+      <video data-photo-video playsinline muted preload="none" aria-label="Live 照片" hidden></video>
+    </div>
+    <span class="sr-only" data-photo-viewer-status role="status"></span>
+  </dialog>
+</div>
+
+<script>
+  import "../scripts/mobile-photo-orbit";
+</script>
+
+<style>
+  .mobile-journal { display:none; }
+  .mobile-journal__viewer:not([open]) { display:none; }
+  @media (max-width:768px) {
+    .mobile-journal { --border-subtle:color-mix(in srgb,var(--text-primary) 12%,transparent); display:block; color:var(--text-primary); }
+    .mobile-journal [hidden] { display:none !important; }
+    .mobile-journal__heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:28px; }
+    .mobile-journal__heading h2 { margin:0; font-size:32px; font-weight:650; line-height:1.06; letter-spacing:-.035em; }
+    .mobile-journal__heading > span { padding-bottom:3px; color:var(--text-tertiary); font:9px "JetBrains Mono",monospace; letter-spacing:.12em; }
+    .mobile-journal__frame {
+      --card-width:clamp(150px,39vw,214px);
+      --card-height:clamp(246px,66vw,346px);
+      position:relative; width:calc(100% + 48px); margin-inline:-24px;
+      height:100vh; height:100svh; overflow:hidden; isolation:isolate;
+      background:#070b10; touch-action:pan-y pinch-zoom; cursor:grab;
+      -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+      mask-image:linear-gradient(transparent,#000 5%,#000 95%,transparent);
+      -webkit-mask-image:linear-gradient(transparent,#000 5%,#000 95%,transparent);
+    }
+    .mobile-journal__frame.is-dragging,.mobile-journal__frame.is-dragging button { cursor:grabbing; }
+    .mobile-journal__atmosphere {
+      position:absolute; inset:0; pointer-events:none;
+      background:radial-gradient(ellipse at 50% 5%,rgb(74 114 145 / 23%),transparent 45%),radial-gradient(ellipse at 50% 61%,rgb(74 114 145 / 15%),transparent 55%),linear-gradient(105deg,#070b10,#0a1018 52%,#060a0e);
+    }
+    .mobile-journal__atmosphere::after {
+      content:""; position:absolute; inset:0; opacity:.2;
+      background-image:radial-gradient(circle at 24% 20%,#b9d3e6 0,.7px,transparent 1.2px),radial-gradient(circle at 73% 12%,#98b1c7 0,.6px,transparent 1px),radial-gradient(circle at 84% 82%,#98b1c7 0,.7px,transparent 1px),radial-gradient(circle at 14% 74%,#98b1c7 0,.5px,transparent 1px);
+    }
+    .mobile-journal__distance { position:absolute; inset:0 -12%; z-index:1; pointer-events:none; opacity:.95; }
+    .mobile-journal__distant-photo { position:absolute; border:1px solid rgb(156 185 209 / 14%); border-radius:4px; overflow:hidden; }
+    .mobile-journal__distant-photo img { display:block; width:100%; height:100%; object-fit:contain; }
+    .mobile-journal__distance::after { content:""; position:absolute; z-index:12; inset:0; background:linear-gradient(transparent 8%,rgb(5 9 14 / 4%) 32%,rgb(5 9 14 / 18%) 72%,#070b10 100%); }
+    .mobile-journal__orbit { position:absolute; z-index:3; inset:0; perspective:800px; perspective-origin:50% 49%; transform-style:preserve-3d; }
+    .mobile-journal__photo { position:absolute; top:50%; left:50%; width:var(--card-width); height:var(--card-height); padding:0; border:0; background:none; color:white; cursor:pointer; transform-style:preserve-3d; will-change:transform; -webkit-tap-highlight-color:transparent; }
+    .mobile-journal__photo-surface { position:absolute; inset:0; overflow:hidden; border:1px solid rgb(184 216 244 / calc(.2 + var(--focus,0) * .48)); border-radius:11px; background:#111923; box-shadow:0 0 18px rgb(120 192 244 / calc(var(--focus,0) * .24)),0 13px 25px rgb(0 0 0 / 40%); }
+    .mobile-journal__photo-surface::after { content:""; position:absolute; inset:0; background:rgb(4 9 15 / var(--shade,0)); pointer-events:none; box-shadow:inset 0 0 0 1px rgb(255 255 255 / 8%); border-radius:inherit; }
+    .mobile-journal__photo-surface > img { display:block; width:100%; height:100%; object-fit:cover; }
+    .mobile-journal__photo img:not([src]) { opacity:0; }
+    .mobile-journal__open-hint { position:absolute; z-index:2; bottom:10px; right:9px; display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:rgb(0 0 0 / 28%); border:1px solid rgb(255 255 255 / 18%); font-size:17px; opacity:var(--focus,0); }
+    .mobile-journal__live { position:absolute; z-index:2; top:10px; left:9px; color:#fff; background:rgb(0 0 0 / 40%); border-radius:20px; padding:5px 7px; font:8px "JetBrains Mono",monospace; letter-spacing:.08em; pointer-events:none; }
+    .mobile-journal__loading { position:absolute; z-index:5; top:83%; left:0; right:0; text-align:center; color:#a4b4c6; font-size:11px; pointer-events:none; }
+    .mobile-journal__retry { position:absolute; z-index:5; top:calc(83% + 20px); left:50%; transform:translateX(-50%); min-height:44px; padding:0 16px; border:1px solid var(--border-subtle); border-radius:22px; background:var(--bg-elevated); color:var(--text-primary); }
+    :global(body.light-mode) .mobile-journal__frame { border-radius:24px; mask-image:none; -webkit-mask-image:none; margin-bottom:22px; }
+    .mobile-journal button:focus-visible { outline:2px solid var(--text-secondary); outline-offset:4px; }
+    .mobile-journal__viewer { position:fixed; inset:0; width:100%; max-width:none; height:100dvh; max-height:none; margin:0; padding:0; border:0; outline:none; background:transparent; color:#f1f3f7; overflow:hidden; overscroll-behavior:contain; }
+    .mobile-journal__viewer[open] { display:block; }
+    .mobile-journal__viewer::backdrop { background:transparent; }
+    .mobile-journal__viewer-veil { position:absolute; inset:0; background:rgb(7 11 18 / 42%); backdrop-filter:blur(18px) saturate(.8); -webkit-backdrop-filter:blur(18px) saturate(.8); }
+    .mobile-journal__viewer-media { position:absolute; z-index:1; overflow:hidden; border-radius:12px; background:#10151c; box-shadow:0 20px 80px rgb(0 0 0 / 35%),0 0 0 1px rgb(255 255 255 / 12%); }
+    .mobile-journal__viewer-media img,.mobile-journal__viewer-media video { display:block; width:100%; height:100%; object-fit:cover; }
+    .mobile-journal__viewer-media video { position:absolute; inset:0; opacity:0; transition:opacity .22s ease; }
+    .mobile-journal__viewer-media video.is-playing { opacity:1; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  }
+</style>

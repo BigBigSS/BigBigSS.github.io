@@ -6,13 +6,14 @@ const buildDate = new Intl.DateTimeFormat("zh-CN", {
   month: "2-digit",
   day: "2-digit",
 }).format(new Date());
+const isHome = Astro.url.pathname === "/";
 ---
 
-<footer class="footer">
+<footer class:list={["footer", { "footer--home": isHome }]}>
   <div class="footer__inner">
     <div class="footer__meta">
       <p class="footer__copy">© 2026 {site.name} · {site.slogan}</p>
-      <p class="footer__subline">Built with Astro · Source on GitHub · Last updated {buildDate}</p>
+      <p class="footer__subline"><span>Built with Astro · Source on GitHub</span><span class="footer__date"> · Last updated {buildDate}</span></p>
     </div>
 
     <div class="footer__links footer__links--secondary">
@@ -32,27 +33,51 @@ const buildDate = new Intl.DateTimeFormat("zh-CN", {
 </footer>
 
 <script>
-  const emailCopyButtons = document.querySelectorAll<HTMLButtonElement>("[data-email-copy]");
+  let cleanupEmailCopy: (() => void) | undefined;
 
-  emailCopyButtons.forEach((emailCopyButton) => {
-    const label = emailCopyButton.querySelector("span") || emailCopyButton;
-    const originalLabel = label.textContent || "CONTACT";
+  const setupEmailCopy = () => {
+    cleanupEmailCopy?.();
+    const events = new AbortController();
+    const timers = new Set<number>();
+    const emailCopyButtons = document.querySelectorAll<HTMLButtonElement>("[data-email-copy]");
 
-    emailCopyButton.addEventListener("click", async () => {
-      const email = emailCopyButton.dataset.emailCopy || "";
-      if (!email) return;
+    emailCopyButtons.forEach((emailCopyButton) => {
+      const label = emailCopyButton.querySelector("span") || emailCopyButton;
+      const originalLabel = label.textContent || "CONTACT";
+      let resetTimer: number | undefined;
 
-      try {
-        await navigator.clipboard.writeText(email);
-        label.textContent = "COPIED";
-        window.setTimeout(() => {
-          label.textContent = originalLabel;
-        }, 1400);
-      } catch (_) {
-        label.textContent = email;
-      }
+      emailCopyButton.addEventListener("click", async () => {
+        const email = emailCopyButton.dataset.emailCopy || "";
+        if (!email) return;
+
+        try {
+          await navigator.clipboard.writeText(email);
+          if (events.signal.aborted) return;
+          if (resetTimer !== undefined) {
+            window.clearTimeout(resetTimer);
+            timers.delete(resetTimer);
+          }
+          label.textContent = "COPIED";
+          resetTimer = window.setTimeout(() => {
+            label.textContent = originalLabel;
+            timers.delete(resetTimer!);
+          }, 1400);
+          timers.add(resetTimer);
+        } catch (_) {
+          if (!events.signal.aborted) label.textContent = email;
+        }
+      }, { signal: events.signal });
     });
-  });
+
+    cleanupEmailCopy = () => {
+      events.abort();
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  };
+
+  document.addEventListener("astro:page-load", setupEmailCopy);
+  document.addEventListener("astro:before-swap", () => cleanupEmailCopy?.());
+  setupEmailCopy();
 </script>
 
 <style>
@@ -130,6 +155,85 @@ const buildDate = new Intl.DateTimeFormat("zh-CN", {
 
     .footer__links--secondary {
       margin-left: 0;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .footer--home {
+      padding: 32px 24px max(32px, env(safe-area-inset-bottom));
+    }
+
+    .footer--home .footer__inner {
+      display: grid;
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      padding-top: 24px;
+      border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    }
+
+    .footer--home .footer__links {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .footer--home .footer__links--secondary {
+      order: -2;
+    }
+
+    .footer--home .footer__links:not(.footer__links--secondary) {
+      order: -1;
+    }
+
+    .footer--home .footer-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 8px 4px;
+      border: 1px solid color-mix(in srgb, var(--text-primary) 9%, transparent);
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: center;
+      overflow-wrap: anywhere;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .footer--home .footer__links--secondary .footer-link {
+      border-color: transparent;
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    }
+
+    .footer--home .footer-link:active {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    }
+
+    .footer--home .footer-link:focus-visible {
+      outline: 2px solid var(--text-secondary);
+      outline-offset: 3px;
+    }
+
+    .footer--home .footer__meta {
+      gap: 9px;
+      margin-top: 22px;
+    }
+
+    .footer--home .footer__copy {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .footer--home .footer__subline {
+      font-size: 10px;
+      line-height: 1.9;
+    }
+
+    .footer--home .footer__date {
+      display: block;
     }
   }
 </style>

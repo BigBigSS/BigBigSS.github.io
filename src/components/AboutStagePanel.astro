@@ -57,9 +57,9 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
 
 <script>
   const initAboutStage = () => {
-  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const isMobile = coarsePointer || window.innerWidth < 768;
+  const mobileViewport = window.matchMedia("(max-width: 768px)");
+  const coarsePointer = window.matchMedia("(pointer: coarse)");
+  const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
   const poemLengthLimit = 18;
   const localPoemSeeds = [
     ["行到水穷处", "坐看云起时"],
@@ -91,6 +91,12 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
   const syncPoemFontSize = (stage: HTMLElement, trigger: HTMLElement, lines: string[]) => {
     const stageWidth = stage.getBoundingClientRect().width || window.innerWidth;
     const longestLine = Math.max(...lines.map((line) => line.length), 1);
+    if (mobileViewport.matches) {
+      const availableWidth = trigger.clientWidth || stageWidth - 42;
+      const mobileSize = Math.min(34, Math.max(12, Math.floor(availableWidth / (longestLine * 1.025))));
+      trigger.style.setProperty("--poem-font-size", `${mobileSize}px`);
+      return;
+    }
     const maxSize = Math.min(window.innerWidth < 640 ? 74 : 128, stageWidth / 2.7);
     const fittedSize = Math.floor((stageWidth * 0.9) / (longestLine * 1.02));
     const nextSize = Math.max(28, Math.min(maxSize, fittedSize));
@@ -145,6 +151,8 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     if (!card || !trigger || stage.dataset.initialized === "1") return;
     stage.dataset.initialized = "1";
     const events = new AbortController();
+    const poemFace = trigger.parentElement!;
+    let poemAnimation: Animation | null = null;
     const trackingRoot = stage.closest<HTMLElement>(".about-stage") ?? stage;
     // 诗词池：客户端只拉一次，之后每次切换在本地随机挑（避免与上一首重复），循环不停。
     const introLineKey = Array.from(
@@ -178,11 +186,21 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     };
 
     const showNextPoem = () => {
+      poemAnimation?.cancel();
       applyStagePoem(stage, nextPoemLines());
+      if (mobileViewport.matches && !motionPreference.matches) {
+        poemAnimation = trigger.animate(
+          [
+            { opacity: 0.2, transform: "translateY(7px)", filter: "blur(3px)" },
+            { opacity: 1, transform: "translateY(0)", filter: "blur(0)" },
+          ],
+          { duration: 560, easing: "cubic-bezier(0.2, 0.65, 0.3, 1)" },
+        );
+      }
     };
 
     void loadPoemPool().then((loaded) => {
-      if (loaded.length) {
+      if (!events.signal.aborted && loaded.length) {
         poemPool = loaded;
         poemOrder = [];
       }
@@ -192,18 +210,21 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
       showNextPoem();
     }, { signal: events.signal });
 
-    window.addEventListener("resize", () => {
+    const fitCurrentPoem = () => {
       const lines = Array.from(trigger.querySelectorAll<HTMLElement>("[data-poetry-line]"))
         .map((item) => item.textContent || "")
         .filter(Boolean);
       if (lines.length) syncPoemFontSize(stage, trigger, lines);
-    }, { signal: events.signal });
+    };
+    window.addEventListener("resize", fitCurrentPoem, { signal: events.signal });
 
     const revealStage = () => {
+      if (mobileViewport.matches) return;
       stage.classList.add("is-active");
     };
 
     const hideStage = () => {
+      if (mobileViewport.matches) return;
       stage.classList.remove("is-active");
       panel?.classList.remove("is-lens-active");
     };
@@ -223,6 +244,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     trigger.addEventListener("blur", hideStage);
 
     const syncLens = (event: PointerEvent) => {
+      if (mobileViewport.matches) return;
       if (!panel || !lens || !lensRoot || !stage.classList.contains("is-active")) return;
       const rect = lensRoot.getBoundingClientRect();
       const x = event.clientX - rect.left;
@@ -239,13 +261,150 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     panel?.addEventListener("pointermove", syncLens);
     panel?.addEventListener("pointerleave", hideLens);
 
-    const shouldTrack3d = !isMobile && !reducedMotion;
+    // Mobile: one card, tap to switch faces; hold the introduction to inspect it.
+    let mobileIntro = false;
+    let holdTimer = 0;
+    let held = false;
+    let gestureMoved = false;
+    let suppressClick = false;
+    let activePointer: number | null = null;
+    let startX = 0;
+    let startY = 0;
 
-    if (isMobile || reducedMotion) {
-      if (isMobile && !reducedMotion) {
-        card.classList.add("mobile-float");
+    const syncMobileFaces = () => {
+      const mobile = mobileViewport.matches;
+      stage.classList.toggle("is-mobile-intro", mobile && mobileIntro);
+      poemFace.inert = mobile && mobileIntro;
+      if (panel) panel.inert = mobile && !mobileIntro;
+      if (mobile) {
+        card.setAttribute("role", "button");
+        card.tabIndex = 0;
+        card.setAttribute("aria-pressed", String(mobileIntro));
+        card.setAttribute("aria-label", mobileIntro
+          ? "个人介绍，长按探索放大镜，点击返回下一首诗词"
+          : `${lastPoemKey.replaceAll("|", "，")}，点击查看个人介绍`);
+        poemFace.setAttribute("aria-hidden", String(mobileIntro));
+        panel?.setAttribute("aria-hidden", String(!mobileIntro));
+      } else {
+        ["role", "tabindex", "aria-pressed", "aria-label"].forEach((name) => card.removeAttribute(name));
+        poemFace.removeAttribute("aria-hidden");
+        panel?.removeAttribute("aria-hidden");
       }
-    }
+    };
+
+    const endHold = () => {
+      window.clearTimeout(holdTimer);
+      holdTimer = 0;
+      if (held || gestureMoved) suppressClick = true;
+      held = false;
+      activePointer = null;
+      if (mobileViewport.matches) hideLens();
+    };
+
+    const moveTouchLens = (clientX: number, clientY: number) => {
+      if (!lensRoot || !panel) return;
+      const rect = lensRoot.getBoundingClientRect();
+      // A small upward offset keeps the lens visible above the fingertip.
+      const x = Math.max(24, Math.min(rect.width - 24, clientX - rect.left));
+      const y = Math.max(24, Math.min(rect.height - 24, clientY - rect.top - 42));
+      lensRoot.style.setProperty("--lens-x", `${x}px`);
+      lensRoot.style.setProperty("--lens-y", `${y}px`);
+      panel.classList.add("is-lens-active");
+    };
+
+    card.addEventListener("pointerdown", (event) => {
+      if (!mobileViewport.matches) return;
+      if (!event.isPrimary || event.button !== 0 || activePointer !== null) {
+        gestureMoved = true;
+        endHold();
+        return;
+      }
+      suppressClick = false;
+      gestureMoved = false;
+      activePointer = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      if (!mobileIntro) return;
+      holdTimer = window.setTimeout(() => {
+        holdTimer = 0;
+        held = true;
+        suppressClick = true;
+        moveTouchLens(startX, startY);
+      }, 420);
+    }, { signal: events.signal });
+
+    card.addEventListener("pointermove", (event) => {
+      if (!mobileViewport.matches || event.pointerId !== activePointer) return;
+      if (held) {
+        moveTouchLens(event.clientX, event.clientY);
+      } else if (Math.hypot(event.clientX - startX, event.clientY - startY) > 9) {
+        gestureMoved = true;
+        endHold();
+      }
+    }, { signal: events.signal });
+
+    // Before the hold, normal vertical scrolling wins. After the hold, only
+    // this gesture is reserved for the lens (including Safari's touch stream).
+    card.addEventListener("touchmove", (event) => {
+      if (!mobileViewport.matches || !held || event.touches.length !== 1) return;
+      if (event.cancelable) event.preventDefault();
+      moveTouchLens(event.touches[0].clientX, event.touches[0].clientY);
+    }, { passive: false, signal: events.signal });
+    card.addEventListener("touchstart", (event) => {
+      if (mobileViewport.matches && event.touches.length > 1) {
+        gestureMoved = true;
+        endHold();
+      }
+    }, { passive: true, signal: events.signal });
+    ["pointerup", "touchend"].forEach((name) => {
+      window.addEventListener(name, endHold, { signal: events.signal });
+    });
+    ["pointercancel", "touchcancel", "lostpointercapture"].forEach((name) => {
+      card.addEventListener(name, () => {
+        if (mobileViewport.matches && activePointer !== null) gestureMoved = true;
+        endHold();
+      }, { signal: events.signal });
+    });
+    card.addEventListener("pointerleave", () => {
+      if (mobileViewport.matches && activePointer !== null) {
+        gestureMoved = true;
+        endHold();
+      }
+    }, { signal: events.signal });
+    card.addEventListener("contextmenu", (event) => {
+      if (mobileViewport.matches) event.preventDefault();
+    }, { signal: events.signal });
+    window.addEventListener("scroll", () => {
+      if (mobileViewport.matches && activePointer !== null) {
+        gestureMoved = true;
+        endHold();
+      }
+    }, { passive: true, signal: events.signal });
+    window.addEventListener("blur", endHold, { signal: events.signal });
+    document.addEventListener("visibilitychange", endHold, { signal: events.signal });
+
+    const toggleMobileCard = () => {
+      endHold();
+      mobileIntro = !mobileIntro;
+      if (!mobileIntro) showNextPoem();
+      syncMobileFaces();
+    };
+    card.addEventListener("click", (event) => {
+      if (!mobileViewport.matches) return;
+      if (suppressClick) {
+        event.preventDefault();
+        suppressClick = false;
+        return;
+      }
+      toggleMobileCard();
+    }, { signal: events.signal });
+    card.addEventListener("keydown", (event) => {
+      if (!mobileViewport.matches || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      if (!event.repeat) toggleMobileCard();
+    }, { signal: events.signal });
+
+    const shouldTrack3d = () => !mobileViewport.matches && !coarsePointer.matches && !motionPreference.matches;
 
     // ── 3D mouse tracking ──
     let frame = 0;
@@ -256,6 +415,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
 
     const update = () => {
       frame = 0;
+      if (!shouldTrack3d()) return;
       currentX += (targetX - currentX) * 0.05;
       currentY += (targetY - currentY) * 0.05;
 
@@ -275,6 +435,7 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     };
 
     const onMove = (event: PointerEvent) => {
+      if (!shouldTrack3d()) return;
       const rect = trackingRoot.getBoundingClientRect();
       targetX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       targetY = ((event.clientY - rect.top) / rect.height) * 2 - 1;
@@ -282,21 +443,50 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
     };
 
     const onLeave = () => {
+      if (!shouldTrack3d()) return;
       targetX = 0;
       targetY = 0;
       schedule();
     };
 
-    if (shouldTrack3d) {
-      trackingRoot.addEventListener("pointermove", onMove);
-      trackingRoot.addEventListener("pointerleave", onLeave);
-      trackingRoot.addEventListener("pointercancel", onLeave);
-    }
+    trackingRoot.addEventListener("pointermove", onMove);
+    trackingRoot.addEventListener("pointerleave", onLeave);
+    trackingRoot.addEventListener("pointercancel", onLeave);
+
+    const syncInteractionMode = () => {
+      endHold();
+      mobileIntro = false;
+      stage.classList.remove("is-active");
+      hideLens();
+      syncMobileFaces();
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      targetX = targetY = currentX = currentY = 0;
+      card.style.removeProperty("transform");
+      // Keep the original coarse-pointer desktop presentation outside the mobile breakpoint.
+      card.classList.toggle("mobile-float", !mobileViewport.matches && coarsePointer.matches && !motionPreference.matches);
+      trigger.tabIndex = mobileViewport.matches ? -1 : 0;
+      if (mobileViewport.matches) {
+        trigger.setAttribute("aria-live", "polite");
+        trigger.setAttribute("aria-atomic", "true");
+      } else {
+        trigger.removeAttribute("aria-live");
+        trigger.removeAttribute("aria-atomic");
+      }
+      if (motionPreference.matches) poemAnimation?.cancel();
+      if (mobileViewport.matches || trigger.style.getPropertyValue("--poem-font-size")) fitCurrentPoem();
+    };
+    mobileViewport.addEventListener("change", syncInteractionMode, { signal: events.signal });
+    coarsePointer.addEventListener("change", syncInteractionMode, { signal: events.signal });
+    motionPreference.addEventListener("change", syncInteractionMode, { signal: events.signal });
+    syncInteractionMode();
 
     document.addEventListener(
       "astro:before-swap",
       () => {
+        endHold();
         events.abort();
+        poemAnimation?.cancel();
         if (frame) window.cancelAnimationFrame(frame);
         trigger.removeEventListener("mouseover", onTriggerOver as EventListener);
         stage.removeEventListener("mouseleave", hideStage);
@@ -674,49 +864,181 @@ const introLines = ["春有百花秋有月", "夏有凉风冬有雪"];
   }
 
   @media (max-width: 768px) {
-    .about-stage__divider {
-      display: none;
-    }
-
-    .about-stage__role {
-      display: block;
-      margin-top: 8px;
-    }
-
-    .about-stage__panel {
-      --lens-size: 118px;
-    }
-
-    .about-stage__title {
-      font-size: clamp(1.55rem, 7vw, 2.2rem);
-    }
-
-    .about-stage__subtitle {
-      font-size: clamp(0.9rem, 3.4vw, 1.05rem);
-      line-height: 1.65;
-    }
-
-    .about-stage__subtitle span:last-child {
-      font-size: clamp(0.5rem, 2.2vw, 0.76rem);
-    }
-
-    .about-stage__copy-layer,
-    .about-stage__panel-inner {
-      gap: 18px;
-    }
-  }
-
-  @media (max-width: 640px) {
     .about-stage {
-      min-height: 280px;
+      display: block;
+      min-height: 0;
+      padding: 72px 0;
+      scroll-margin-top: 94px;
+    }
+
+    .about-stage__shell {
+      width: calc(100% - 48px);
+      max-width: 560px;
+      margin-inline: auto;
+    }
+
+    .about-stage__eyebrow {
+      margin-bottom: 25px;
+      font-size: 10px;
+      line-height: 1.5;
+      letter-spacing: 0.17em;
     }
 
     .about-stage__spot {
-      min-height: 280px;
+      display: block;
+      max-width: none;
+      min-height: 0;
+      perspective: none;
     }
 
     .about-stage__card {
-      min-height: 280px;
+      display: grid;
+      align-items: stretch;
+      min-height: 260px;
+      overflow: hidden;
+      border: 1px solid rgba(186, 198, 216, 0.1);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(172, 189, 217, 0.045), rgba(129, 151, 182, 0.008));
+      transform: none !important;
+      transform-style: flat;
+      transition: none;
+      animation: none !important;
+      will-change: auto;
+      cursor: pointer;
+      touch-action: pan-y pinch-zoom;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .about-stage__card:focus-visible {
+      outline: 1px solid var(--text-secondary);
+      outline-offset: 5px;
+    }
+
+    .about-stage__backdrop {
+      display: none;
+    }
+
+    .about-stage__trigger-wrap,
+    .about-stage__spot:global(.is-active) .about-stage__trigger-wrap {
+      position: relative;
+      grid-area: 1 / 1;
+      flex-direction: column;
+      align-items: stretch;
+      box-sizing: border-box;
+      padding: 30px 24px;
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      filter: blur(0);
+      pointer-events: auto;
+      transition: opacity 300ms ease, transform 350ms ease, filter 300ms ease, visibility 300ms;
+    }
+
+    .about-stage__spot:global(.is-mobile-intro) .about-stage__trigger-wrap {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      filter: blur(3px);
+      pointer-events: none;
+    }
+
+    .about-stage__trigger,
+    .about-stage__trigger:global(.is-stacked) {
+      display: grid;
+      width: 100%;
+      gap: 0.22em;
+      justify-content: start;
+      font-size: var(--poem-font-size, 30px);
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: 0.015em;
+      text-align: left;
+    }
+
+    .about-stage__trigger :global([data-poetry-line]) {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+
+    .about-stage__panel,
+    .about-stage__spot:global(.is-active) .about-stage__panel {
+      position: relative;
+      grid-area: 1 / 1;
+      align-items: stretch;
+      box-sizing: border-box;
+      padding: 30px 24px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      filter: blur(3px);
+      pointer-events: none;
+      transition: opacity 300ms ease, transform 350ms ease, filter 300ms ease, visibility 300ms;
+      cursor: pointer;
+      --lens-size: 128px;
+    }
+
+    .about-stage__spot:global(.is-mobile-intro) .about-stage__panel {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      filter: blur(0);
+      pointer-events: auto;
+    }
+
+    .about-stage__panel-inner {
+      width: 100%;
+      min-height: 0;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .about-stage__copy-layer {
+      align-items: flex-start;
+      gap: 13px;
+    }
+
+    .about-stage__copy-layer--lens {
+      transform: scale(1.12);
+      clip-path: circle(calc(var(--lens-size) * 0.5 / 1.12) at var(--lens-x) var(--lens-y));
+    }
+
+    .about-stage__title {
+      font-size: clamp(22px, 5.7vw, 27px);
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: -0.03em;
+      text-align: left;
+    }
+
+    .about-stage__subtitle,
+    .about-stage__subtitle span:last-child {
+      font-size: 13px;
+      line-height: 1.9;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+
+    .about-stage__subtitle {
+      gap: 4px;
+    }
+
+    :global(body.light-mode) .about-stage__card {
+      border-color: rgba(38, 48, 64, 0.1);
+      background: linear-gradient(145deg, rgba(115, 134, 165, 0.06), rgba(115, 134, 165, 0.015));
+    }
+  }
+
+  @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+    .about-stage__trigger-wrap,
+    .about-stage__panel,
+    .about-stage__lens,
+    .about-stage__copy-layer--lens {
+      transition: none;
     }
   }
 </style>
